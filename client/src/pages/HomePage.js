@@ -8,6 +8,8 @@ import {
   HiGlobe,
   HiDatabase,
   HiClock,
+  HiPhotograph,
+  HiFilm,
 } from 'react-icons/hi';
 import { FiArrowRight, FiSearch, FiCpu, FiCheckCircle, FiBarChart2 } from 'react-icons/fi';
 import './HomePage.css';
@@ -35,28 +37,28 @@ const features = [
     desc: 'Ensemble of Logistic Regression, Random Forest, and Gradient Boosting models.',
   },
   {
-    icon: <HiChartBar />,
+    icon: <HiPhotograph />,
     color: 'purple',
+    title: 'Image Forensics',
+    desc: 'Detect manipulated images using ELA, metadata analysis, and pixel-level statistics.',
+  },
+  {
+    icon: <HiFilm />,
+    color: 'cyan',
+    title: 'Video Analysis',
+    desc: 'Analyze videos for frame consistency, noise anomalies, and temporal manipulation.',
+  },
+  {
+    icon: <HiChartBar />,
+    color: 'yellow',
     title: 'Detailed Breakdown',
     desc: 'See sentiment, subjectivity, clickbait detection, and credibility indicators.',
   },
   {
-    icon: <HiGlobe />,
-    color: 'cyan',
-    title: 'NLP Analysis',
-    desc: 'Advanced natural language processing to detect patterns in fake news content.',
-  },
-  {
     icon: <HiDatabase />,
-    color: 'yellow',
+    color: 'red',
     title: 'History Tracking',
     desc: 'Save and review all your previous analyses with a personal dashboard.',
-  },
-  {
-    icon: <HiClock />,
-    color: 'red',
-    title: 'User Feedback Loop',
-    desc: 'Submit feedback on results to help improve the model over time.',
   },
 ];
 
@@ -90,16 +92,16 @@ const HomePage = () => {
             </motion.h1>
 
             <motion.p className="hero-subtitle" custom={2} variants={fadeUp}>
-              Paste any news article and our machine learning models will
-              analyze it for credibility, sentiment, and reliability in seconds.
+              Paste any news article, upload images, or submit videos — our machine
+              learning models will analyze them for authenticity and manipulation in seconds.
             </motion.p>
 
             <motion.div className="hero-actions" custom={3} variants={fadeUp}>
               <Link to="/analyze" className="btn btn-primary btn-lg">
-                Start Analyzing <FiArrowRight />
+                Analyze Text <FiArrowRight />
               </Link>
-              <Link to="/about" className="btn btn-secondary btn-lg">
-                Learn More
+              <Link to="/media-analyze" className="btn btn-secondary btn-lg">
+                Analyze Media <FiArrowRight />
               </Link>
             </motion.div>
 

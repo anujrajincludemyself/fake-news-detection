@@ -12,6 +12,7 @@ const logger = require('./utils/logger');
 // Route files
 const authRoutes = require('./routes/auth');
 const analysisRoutes = require('./routes/analysis');
+const mediaRoutes = require('./routes/media');
 
 // Connect to database
 connectDB();
@@ -46,8 +47,8 @@ const analysisLimiter = rateLimit({
 app.use('/api/analysis', analysisLimiter);
 
 // Body parser
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Logging
 if (process.env.NODE_ENV !== 'production') {
@@ -66,6 +67,7 @@ app.get('/api/health', (req, res) => {
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/analysis', analysisRoutes);
+app.use('/api/media', mediaRoutes);
 
 // Error handler
 app.use(errorHandler);

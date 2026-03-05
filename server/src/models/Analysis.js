@@ -22,10 +22,20 @@ const analysisSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    analysisType: {
+      type: String,
+      enum: ['text', 'image', 'video'],
+      default: 'text',
+    },
+    mediaFilename: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     prediction: {
       label: {
         type: String,
-        enum: ['REAL', 'FAKE', 'UNCERTAIN'],
+        enum: ['REAL', 'FAKE', 'UNCERTAIN', 'AUTHENTIC', 'MANIPULATED'],
         required: true,
       },
       confidence: {
@@ -44,6 +54,8 @@ const analysisSchema = new mongoose.Schema(
           hasStatisticalClaims: { type: Boolean, default: false },
           readabilityScore: { type: Number, default: 0 },
         },
+        analysisType: { type: String, default: 'text' },
+        mediaDetails: { type: mongoose.Schema.Types.Mixed, default: null },
       },
     },
     feedback: {

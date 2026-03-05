@@ -15,6 +15,46 @@ export const analyzeNews = createAsyncThunk(
   }
 );
 
+export const analyzeImage = createAsyncThunk(
+  'analysis/analyzeImage',
+  async ({ file, title }, { rejectWithValue }) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (title) formData.append('title', title);
+      const { data } = await api.post('/media/image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 60000,
+      });
+      return data.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || 'Image analysis failed'
+      );
+    }
+  }
+);
+
+export const analyzeVideo = createAsyncThunk(
+  'analysis/analyzeVideo',
+  async ({ file, title }, { rejectWithValue }) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      if (title) formData.append('title', title);
+      const { data } = await api.post('/media/video', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000,
+      });
+      return data.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || 'Video analysis failed'
+      );
+    }
+  }
+);
+
 export const fetchHistory = createAsyncThunk(
   'analysis/fetchHistory',
   async (params = {}, { rejectWithValue }) => {
@@ -92,6 +132,34 @@ const analysisSlice = createSlice({
         state.currentAnalysis = action.payload;
       })
       .addCase(analyzeNews.rejected, (state, action) => {
+        state.analyzing = false;
+        state.error = action.payload;
+      })
+      // Analyze Image
+      .addCase(analyzeImage.pending, (state) => {
+        state.analyzing = true;
+        state.error = null;
+        state.currentAnalysis = null;
+      })
+      .addCase(analyzeImage.fulfilled, (state, action) => {
+        state.analyzing = false;
+        state.currentAnalysis = action.payload;
+      })
+      .addCase(analyzeImage.rejected, (state, action) => {
+        state.analyzing = false;
+        state.error = action.payload;
+      })
+      // Analyze Video
+      .addCase(analyzeVideo.pending, (state) => {
+        state.analyzing = true;
+        state.error = null;
+        state.currentAnalysis = null;
+      })
+      .addCase(analyzeVideo.fulfilled, (state, action) => {
+        state.analyzing = false;
+        state.currentAnalysis = action.payload;
+      })
+      .addCase(analyzeVideo.rejected, (state, action) => {
         state.analyzing = false;
         state.error = action.payload;
       })

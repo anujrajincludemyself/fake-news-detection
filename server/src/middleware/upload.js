@@ -1,0 +1,42 @@
+const multer = require('multer');
+const path = require('path');
+
+// Store files in memory for forwarding to ML service
+const storage = multer.memoryStorage();
+
+const imageFilter = (req, file, cb) => {
+  const allowed = /jpeg|jpg|png|webp|bmp/;
+  const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+  const mime = allowed.test(file.mimetype.split('/')[1]);
+  if (ext && mime) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only image files (JPEG, PNG, WebP, BMP) are allowed'), false);
+  }
+};
+
+const videoFilter = (req, file, cb) => {
+  const allowedExt = /mp4|avi|webm|mov|mkv|mpeg/;
+  const allowedMime = /mp4|mpeg|avi|webm|quicktime|x-msvideo|x-matroska/;
+  const ext = allowedExt.test(path.extname(file.originalname).toLowerCase());
+  const mime = allowedMime.test(file.mimetype.split('/')[1]);
+  if (ext || mime) {
+    cb(null, true);
+  } else {
+    cb(new Error('Only video files (MP4, AVI, WebM, MOV, MKV) are allowed'), false);
+  }
+};
+
+const uploadImage = multer({
+  storage,
+  fileFilter: imageFilter,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
+});
+
+const uploadVideo = multer({
+  storage,
+  fileFilter: videoFilter,
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100 MB
+});
+
+module.exports = { uploadImage, uploadVideo };

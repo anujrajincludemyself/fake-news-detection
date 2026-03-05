@@ -3,21 +3,27 @@ Fake News Detection ML Microservice
 
 FastAPI server that loads a trained model and exposes prediction endpoints.
 Falls back to heuristic analysis if no trained model is available.
+Includes image and video fake detection via forensic analysis.
 """
 
 import os
 import re
+import io
+import math
+import struct
 import logging
+import tempfile
 from contextlib import asynccontextmanager
 
 import joblib
 import nltk
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
+from PIL import Image, ImageChops, ImageEnhance, ExifTags
 
 # Setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -260,6 +266,390 @@ async def model_info():
         'model_type': type(model).__name__ if model else None,
         'vectorizer_loaded': vectorizer is not None,
     }
+
+
+# ──────────────────────────────────────────
+# IMAGE FAKE DETECTION
+# ──────────────────────────────────────────
+
+ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/webp', 'image/bmp'}
+MAX_IMAGE_SIZE = 20 * 1024 * 1024  # 20 MB
+
+
+def error_level_analysis(image: Image.Image, quality: int = 90) -> dict:
+    """
+    Perform Error Level Analysis (ELA).
+    Resave at a known quality and measure difference —
+    manipulated regions show higher error levels.
+    """
+    original = image.convert('RGB')
+    buffer = io.BytesIO()
+    original.save(buffer, 'JPEG', quality=quality)
+    buffer.seek(0)
+    resaved = Image.open(buffer)
+
+    diff = ImageChops.difference(original, resaved)
+    extrema = diff.getextrema()
+    max_diff = max(ch[1] for ch in extrema)
+
+    pixels = np.array(diff, dtype=np.float64)
+    mean_error = float(np.mean(pixels))
+    std_error = float(np.std(pixels))
+    max_error = float(np.max(pixels))
+
+    # Regions with high error suggest manipulation
+    threshold = mean_error + 2 * std_error
+    suspicious_pixels = int(np.sum(pixels > threshold))
+    total_pixels = pixels.size
+    suspicious_ratio = suspicious_pixels / total_pixels if total_pixels else 0
+
+    return {
+        'mean_error': round(mean_error, 3),
+        'std_error': round(std_error, 3),
+        'max_error': round(max_error, 3),
+        'max_channel_diff': int(max_diff),
+        'suspicious_pixel_ratio': round(suspicious_ratio, 5),
+    }
+
+
+def analyze_metadata(image: Image.Image) -> dict:
+    """Extract and flag suspicious EXIF / metadata."""
+    info = {}
+    has_exif = False
+    software = None
+    has_edit_software = False
+
+    try:
+        exif_data = image._getexif()
+        if exif_data:
+            has_exif = True
+            tag_map = {v: k for k, v in ExifTags.TAGS.items()}
+            if 'Software' in tag_map and tag_map['Software'] in exif_data:
+                software = str(exif_data[tag_map['Software']])
+            # Check for common editing software
+            edit_keywords = ['photoshop', 'gimp', 'paint', 'canva', 'affinity',
+                             'lightroom', 'snapseed', 'picsart', 'faceapp']
+            if software:
+                has_edit_software = any(k in software.lower() for k in edit_keywords)
+    except Exception:
+        pass
+
+    return {
+        'has_exif': has_exif,
+        'editing_software': software,
+        'has_edit_software': has_edit_software,
+        'format': image.format or 'UNKNOWN',
+        'mode': image.mode,
+        'size': {'width': image.width, 'height': image.height},
+    }
+
+
+def pixel_statistics(image: Image.Image) -> dict:
+    """Statistical analysis of pixel distribution to detect anomalies."""
+    arr = np.array(image.convert('RGB'), dtype=np.float64)
+
+    # Per-channel stats
+    channel_stats = {}
+    for i, name in enumerate(['red', 'green', 'blue']):
+        ch = arr[:, :, i].flatten()
+        channel_stats[name] = {
+            'mean': round(float(np.mean(ch)), 2),
+            'std': round(float(np.std(ch)), 2),
+        }
+
+    # Uniformity check — very uniform images may be synthetic
+    overall_std = float(np.std(arr))
+    is_overly_uniform = overall_std < 15
+
+    # Noise analysis — synthetic/AI images often have different noise profiles
+    gray = np.mean(arr, axis=2)
+    laplacian_var = float(np.var(gray[1:-1, 1:-1] * 4
+                                  - gray[:-2, 1:-1]
+                                  - gray[2:, 1:-1]
+                                  - gray[1:-1, :-2]
+                                  - gray[1:-1, 2:]))
+    # Very low noise variance can indicate AI-generated images
+    low_noise = laplacian_var < 50
+
+    return {
+        'channels': channel_stats,
+        'overall_std': round(overall_std, 2),
+        'is_overly_uniform': is_overly_uniform,
+        'noise_variance': round(laplacian_var, 2),
+        'low_noise_flag': low_noise,
+    }
+
+
+def analyze_image(image: Image.Image) -> dict:
+    """Run full image forensic analysis and produce a verdict."""
+    ela = error_level_analysis(image)
+    metadata = analyze_metadata(image)
+    stats = pixel_statistics(image)
+
+    # Scoring (0 = definitely real, 100 = definitely fake)
+    score = 0
+
+    # ELA signals
+    if ela['suspicious_pixel_ratio'] > 0.02:
+        score += 20
+    if ela['suspicious_pixel_ratio'] > 0.05:
+        score += 10
+    if ela['max_channel_diff'] > 50:
+        score += 10
+    if ela['mean_error'] > 8:
+        score += 10
+
+    # Metadata signals
+    if metadata['has_edit_software']:
+        score += 15
+    if not metadata['has_exif']:
+        score += 5  # stripped metadata is mildly suspicious
+
+    # Pixel stats signals
+    if stats['is_overly_uniform']:
+        score += 15
+    if stats['low_noise_flag']:
+        score += 10
+
+    score = min(100, max(0, score))
+
+    if score >= 55:
+        label = 'MANIPULATED'
+        confidence = min(95, 50 + score)
+    elif score <= 25:
+        label = 'AUTHENTIC'
+        confidence = min(95, 100 - score)
+    else:
+        label = 'UNCERTAIN'
+        confidence = 50 + abs(score - 40)
+
+    confidence = round(min(95, confidence), 2)
+
+    return {
+        'label': label,
+        'confidence': confidence,
+        'analysis_type': 'image',
+        'details': {
+            'error_level_analysis': ela,
+            'metadata': metadata,
+            'pixel_statistics': stats,
+            'manipulation_score': score,
+        },
+    }
+
+
+@app.post('/predict/image')
+async def predict_image(file: UploadFile = File(...)):
+    """Analyze an uploaded image for signs of manipulation."""
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(400, f'Unsupported image type: {file.content_type}. Accepted: JPEG, PNG, WebP, BMP')
+
+    contents = await file.read()
+    if len(contents) > MAX_IMAGE_SIZE:
+        raise HTTPException(400, 'Image too large. Maximum size is 20 MB.')
+
+    try:
+        image = Image.open(io.BytesIO(contents))
+        result = analyze_image(image)
+        return result
+    except Exception as e:
+        logger.error(f'Image analysis failed: {e}')
+        raise HTTPException(500, 'Image analysis failed. Please try a different image.')
+
+
+# ──────────────────────────────────────────
+# VIDEO FAKE DETECTION
+# ──────────────────────────────────────────
+
+ALLOWED_VIDEO_TYPES = {'video/mp4', 'video/mpeg', 'video/avi', 'video/webm',
+                       'video/quicktime', 'video/x-msvideo', 'video/x-matroska'}
+MAX_VIDEO_SIZE = 100 * 1024 * 1024  # 100 MB
+
+
+def extract_video_frames(video_path: str, max_frames: int = 20):
+    """Extract evenly-spaced frames from a video file."""
+    import cv2
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError('Could not open video file')
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30
+    duration = total_frames / fps if fps > 0 else 0
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    frame_indices = np.linspace(0, total_frames - 1, min(max_frames, total_frames), dtype=int)
+    frames = []
+
+    for idx in frame_indices:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
+        ret, frame = cap.read()
+        if ret:
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frames.append(rgb)
+
+    cap.release()
+
+    return frames, {
+        'total_frames': total_frames,
+        'fps': round(fps, 2),
+        'duration_seconds': round(duration, 2),
+        'resolution': {'width': width, 'height': height},
+    }
+
+
+def analyze_frame_consistency(frames: list) -> dict:
+    """Check temporal consistency between consecutive frames."""
+    if len(frames) < 2:
+        return {'consistent': True, 'anomaly_count': 0, 'frame_diffs': []}
+
+    diffs = []
+    for i in range(1, len(frames)):
+        diff = np.mean(np.abs(frames[i].astype(float) - frames[i - 1].astype(float)))
+        diffs.append(round(float(diff), 3))
+
+    mean_diff = np.mean(diffs)
+    std_diff = np.std(diffs)
+
+    # Detect anomalous jumps between frames
+    anomalies = []
+    for i, d in enumerate(diffs):
+        if std_diff > 0 and abs(d - mean_diff) > 2.5 * std_diff:
+            anomalies.append({'frame_pair': [i, i + 1], 'diff': d})
+
+    return {
+        'mean_frame_diff': round(float(mean_diff), 3),
+        'std_frame_diff': round(float(std_diff), 3),
+        'anomaly_count': len(anomalies),
+        'anomalies': anomalies[:5],  # limit to top 5
+        'consistent': len(anomalies) == 0,
+    }
+
+
+def analyze_frame_noise(frames: list) -> dict:
+    """Analyze noise consistency across frames — spliced content has different noise."""
+    noise_levels = []
+    for frame in frames:
+        gray = np.mean(frame.astype(float), axis=2)
+        if gray.shape[0] > 2 and gray.shape[1] > 2:
+            lap_var = float(np.var(
+                gray[1:-1, 1:-1] * 4
+                - gray[:-2, 1:-1]
+                - gray[2:, 1:-1]
+                - gray[1:-1, :-2]
+                - gray[1:-1, 2:]
+            ))
+        else:
+            lap_var = 0
+        noise_levels.append(round(lap_var, 2))
+
+    mean_noise = float(np.mean(noise_levels)) if noise_levels else 0
+    std_noise = float(np.std(noise_levels)) if noise_levels else 0
+    noise_variation = std_noise / mean_noise if mean_noise > 0 else 0
+
+    return {
+        'mean_noise': round(mean_noise, 2),
+        'noise_std': round(std_noise, 2),
+        'noise_variation': round(noise_variation, 4),
+        'inconsistent_noise': noise_variation > 0.5,
+    }
+
+
+def analyze_video_frames(frames: list, video_meta: dict) -> dict:
+    """Run full video forensic analysis."""
+    consistency = analyze_frame_consistency(frames)
+    noise = analyze_frame_noise(frames)
+
+    # Run image-level ELA on sampled frames
+    frame_ela_scores = []
+    for frame in frames[:10]:
+        pil_img = Image.fromarray(frame)
+        ela = error_level_analysis(pil_img)
+        frame_ela_scores.append(ela['suspicious_pixel_ratio'])
+
+    avg_ela = float(np.mean(frame_ela_scores)) if frame_ela_scores else 0
+
+    # Scoring
+    score = 0
+
+    # Temporal consistency
+    if not consistency['consistent']:
+        score += 20
+    if consistency['anomaly_count'] > 3:
+        score += 10
+
+    # Noise analysis
+    if noise['inconsistent_noise']:
+        score += 20
+
+    # ELA across frames
+    if avg_ela > 0.03:
+        score += 15
+    if avg_ela > 0.06:
+        score += 10
+
+    # Suspicious metadata
+    if video_meta['fps'] < 10 or video_meta['fps'] > 120:
+        score += 10
+
+    score = min(100, max(0, score))
+
+    if score >= 50:
+        label = 'MANIPULATED'
+        confidence = min(95, 50 + score)
+    elif score <= 20:
+        label = 'AUTHENTIC'
+        confidence = min(95, 100 - score)
+    else:
+        label = 'UNCERTAIN'
+        confidence = 50 + abs(score - 35)
+
+    confidence = round(min(95, confidence), 2)
+
+    return {
+        'label': label,
+        'confidence': confidence,
+        'analysis_type': 'video',
+        'details': {
+            'video_info': video_meta,
+            'frame_consistency': consistency,
+            'noise_analysis': noise,
+            'avg_ela_score': round(avg_ela, 5),
+            'manipulation_score': score,
+            'frames_analyzed': len(frames),
+        },
+    }
+
+
+@app.post('/predict/video')
+async def predict_video(file: UploadFile = File(...)):
+    """Analyze an uploaded video for signs of manipulation."""
+    if file.content_type not in ALLOWED_VIDEO_TYPES:
+        raise HTTPException(400, f'Unsupported video type: {file.content_type}. Accepted: MP4, AVI, WebM, MOV, MKV')
+
+    contents = await file.read()
+    if len(contents) > MAX_VIDEO_SIZE:
+        raise HTTPException(400, 'Video too large. Maximum size is 100 MB.')
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp:
+            tmp.write(contents)
+            tmp_path = tmp.name
+
+        frames, video_meta = extract_video_frames(tmp_path, max_frames=20)
+        os.unlink(tmp_path)
+
+        if len(frames) == 0:
+            raise HTTPException(400, 'Could not extract frames from video.')
+
+        result = analyze_video_frames(frames, video_meta)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f'Video analysis failed: {e}')
+        raise HTTPException(500, 'Video analysis failed. Please try a different video.')
 
 
 if __name__ == '__main__':

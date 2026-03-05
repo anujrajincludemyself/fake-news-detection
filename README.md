@@ -1,6 +1,6 @@
 # VerifyNews - AI Fake News Detection Platform
 
-A full-stack web application that detects fake news using machine learning and natural language processing. Built with React, Node.js, MongoDB, and a Python ML microservice.
+A full-stack web application that detects fake news using machine learning and natural language processing. Supports **text, image, and video** analysis. Built with React, Node.js, MongoDB, and a Python ML microservice.
 
 ---
 
@@ -13,9 +13,17 @@ client/ (React + Redux)   -->   server/ (Node.js/Express)   -->   MongoDB
 ```
 
 - **Frontend** -- React SPA with Redux Toolkit, React Router, Framer Motion
-- **Backend** -- Express REST API with JWT auth, rate limiting, NLP analysis
-- **ML Service** -- FastAPI microservice with scikit-learn ensemble model
+- **Backend** -- Express REST API with JWT auth, rate limiting, NLP analysis, media upload
+- **ML Service** -- FastAPI microservice with scikit-learn ensemble model + image/video forensics
 - **Database** -- MongoDB for users, analyses, and feedback
+
+### Detection Capabilities
+
+| Type | Techniques |
+|------|------------|
+| **Text** | ML ensemble (Logistic Regression, Random Forest, Gradient Boosting), NLP heuristics, sentiment & clickbait detection |
+| **Image** | Error Level Analysis (ELA), EXIF metadata inspection, pixel statistics, noise profiling |
+| **Video** | Frame extraction, temporal consistency analysis, per-frame ELA, noise profile analysis |
 
 ---
 

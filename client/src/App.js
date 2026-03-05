@@ -6,6 +6,7 @@ import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import HomePage from './pages/HomePage';
 import AnalyzePage from './pages/AnalyzePage';
+import MediaAnalyzePage from './pages/MediaAnalyzePage';
 import DashboardPage from './pages/DashboardPage';
 import HistoryPage from './pages/HistoryPage';
 import LoginPage from './pages/LoginPage';
@@ -31,6 +32,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/analyze" element={<AnalyzePage />} />
+          <Route path="/media-analyze" element={<MediaAnalyzePage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
