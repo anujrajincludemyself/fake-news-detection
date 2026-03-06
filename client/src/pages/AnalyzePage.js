@@ -196,113 +196,157 @@ const AnalyzePage = () => {
 
                   {/* Details */}
                   <div className="result-details">
-                    <div className="detail-section">
-                      <div className="detail-section-title">
-                        Credibility Indicators
-                      </div>
-                      <div className="detail-grid">
-                        <div className="detail-item">
-                          <span className="detail-item-label">Clickbait</span>
-                          <span
-                            className={`indicator-tag ${
-                              pred.details?.credibilityIndicators?.hasClickbait
-                                ? 'detected'
-                                : 'clear'
-                            }`}
-                          >
-                            {pred.details?.credibilityIndicators?.hasClickbait
-                              ? 'Detected'
-                              : 'Clear'}
-                          </span>
+                    {/* ── HuggingFace AI result ── */}
+                    {pred.details?.source === 'huggingface' ? (
+                      <>
+                        <div className="detail-section">
+                          <div className="detail-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            AI Verification
+                            <span style={{ fontSize: '11px', background: '#ff6b35', color: '#fff', borderRadius: '4px', padding: '1px 7px', fontWeight: 600 }}>HuggingFace AI</span>
+                          </div>
+                          {pred.details?.modelScores?.length > 0 && (
+                            <div className="detail-grid" style={{ marginTop: '10px' }}>
+                              {pred.details.modelScores.map((s) => (
+                                <div className="detail-item" key={s.label}>
+                                  <span className="detail-item-label">{s.label}</span>
+                                  <span className={`detail-item-value ${s.score >= 50 ? 'positive' : 'neutral'}`}>
+                                    {s.score}%
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        <div className="detail-item">
-                          <span className="detail-item-label">Emotional</span>
-                          <span
-                            className={`indicator-tag ${
-                              pred.details?.credibilityIndicators
-                                ?.hasEmotionalLanguage
-                                ? 'detected'
-                                : 'clear'
-                            }`}
-                          >
-                            {pred.details?.credibilityIndicators
-                              ?.hasEmotionalLanguage
-                              ? 'Detected'
-                              : 'Clear'}
-                          </span>
+                      </>
+                    ) : pred.details?.source === 'gemini' ? (
+                      /* ── Gemini result ── */
+                      <>
+                        <div className="detail-section">
+                          <div className="detail-section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            AI Verification
+                            <span style={{ fontSize: '11px', background: '#4f8ef7', color: '#fff', borderRadius: '4px', padding: '1px 7px', fontWeight: 600 }}>Gemini AI</span>
+                          </div>
+                          {pred.details?.reasoning && (
+                            <div className="detail-item" style={{ display: 'block', padding: '10px 0' }}>
+                              <p style={{ margin: 0, lineHeight: 1.6, color: 'var(--text-secondary, #aaa)' }}>
+                                {pred.details.reasoning}
+                              </p>
+                            </div>
+                          )}
                         </div>
-                        <div className="detail-item">
-                          <span className="detail-item-label">Sources Cited</span>
-                          <span
-                            className={`indicator-tag ${
-                              pred.details?.credibilityIndicators
-                                ?.hasSourceAttribution
-                                ? 'clear'
-                                : 'detected'
-                            }`}
-                          >
-                            {pred.details?.credibilityIndicators
-                              ?.hasSourceAttribution
-                              ? 'Yes'
-                              : 'No'}
-                          </span>
+                      </>
+                    ) : (
+                      /* ── NLP fallback result ── */
+                      <>
+                        <div className="detail-section">
+                          <div className="detail-section-title">
+                            Credibility Indicators
+                          </div>
+                          <div className="detail-grid">
+                            <div className="detail-item">
+                              <span className="detail-item-label">Clickbait</span>
+                              <span
+                                className={`indicator-tag ${
+                                  pred.details?.credibilityIndicators?.hasClickbait
+                                    ? 'detected'
+                                    : 'clear'
+                                }`}
+                              >
+                                {pred.details?.credibilityIndicators?.hasClickbait
+                                  ? 'Detected'
+                                  : 'Clear'}
+                              </span>
+                            </div>
+                            <div className="detail-item">
+                              <span className="detail-item-label">Emotional</span>
+                              <span
+                                className={`indicator-tag ${
+                                  pred.details?.credibilityIndicators
+                                    ?.hasEmotionalLanguage
+                                    ? 'detected'
+                                    : 'clear'
+                                }`}
+                              >
+                                {pred.details?.credibilityIndicators
+                                  ?.hasEmotionalLanguage
+                                  ? 'Detected'
+                                  : 'Clear'}
+                              </span>
+                            </div>
+                            <div className="detail-item">
+                              <span className="detail-item-label">Sources Cited</span>
+                              <span
+                                className={`indicator-tag ${
+                                  pred.details?.credibilityIndicators
+                                    ?.hasSourceAttribution
+                                    ? 'clear'
+                                    : 'detected'
+                                }`}
+                              >
+                                {pred.details?.credibilityIndicators
+                                  ?.hasSourceAttribution
+                                  ? 'Yes'
+                                  : 'No'}
+                              </span>
+                            </div>
+                            <div className="detail-item">
+                              <span className="detail-item-label">Statistics</span>
+                              <span
+                                className={`indicator-tag ${
+                                  pred.details?.credibilityIndicators
+                                    ?.hasStatisticalClaims
+                                    ? 'clear'
+                                    : 'detected'
+                                }`}
+                              >
+                                {pred.details?.credibilityIndicators
+                                  ?.hasStatisticalClaims
+                                  ? 'Present'
+                                  : 'None'}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="detail-item">
-                          <span className="detail-item-label">Statistics</span>
-                          <span
-                            className={`indicator-tag ${
-                              pred.details?.credibilityIndicators
-                                ?.hasStatisticalClaims
-                                ? 'clear'
-                                : 'detected'
-                            }`}
-                          >
-                            {pred.details?.credibilityIndicators
-                              ?.hasStatisticalClaims
-                              ? 'Present'
-                              : 'None'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
 
-                    <div className="detail-section">
-                      <div className="detail-section-title">
-                        Text Analysis
-                      </div>
-                      <div className="detail-grid">
-                        <div className="detail-item">
-                          <span className="detail-item-label">Sentiment</span>
-                          <span
-                            className={`detail-item-value ${
-                              (pred.details?.sentimentScore || 0) > 0
-                                ? 'positive'
-                                : (pred.details?.sentimentScore || 0) < 0
-                                ? 'negative'
-                                : 'neutral'
-                            }`}
-                          >
-                            {pred.details?.sentimentScore || 0}
-                          </span>
+                        <div className="detail-section">
+                          <div className="detail-section-title">
+                            Text Analysis
+                          </div>
+                          <div className="detail-grid">
+                            <div className="detail-item">
+                              <span className="detail-item-label">Sentiment</span>
+                              <span
+                                className={`detail-item-value ${
+                                  (pred.details?.sentimentScore || 0) > 0
+                                    ? 'positive'
+                                    : (pred.details?.sentimentScore || 0) < 0
+                                    ? 'negative'
+                                    : 'neutral'
+                                }`}
+                              >
+                                {pred.details?.sentimentScore || 0}
+                              </span>
+                            </div>
+                            <div className="detail-item">
+                              <span className="detail-item-label">Subjectivity</span>
+                              <span className="detail-item-value neutral">
+                                {(
+                                  (pred.details?.subjectivityScore || 0) * 100
+                                ).toFixed(1)}
+                                %
+                              </span>
+                            </div>
+                            <div className="detail-item">
+                              <span className="detail-item-label">Readability</span>
+                              <span className="detail-item-value neutral">
+                                {pred.details?.credibilityIndicators
+                                  ?.readabilityScore || 0}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="detail-item">
-                          <span className="detail-item-label">Subjectivity</span>
-                          <span className="detail-item-value neutral">
-                            {(
-                              (pred.details?.subjectivityScore || 0) * 100
-                            ).toFixed(1)}
-                            %
-                          </span>
-                        </div>
-                        <div className="detail-item">
-                          <span className="detail-item-label">Readability</span>
-                          <span className="detail-item-value neutral">
-                            {pred.details?.credibilityIndicators
-                              ?.readabilityScore || 0}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                      </>
+                    )}
                   </div>
                 </motion.div>
               ) : (
