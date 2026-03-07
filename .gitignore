@@ -27,9 +27,12 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# ML model files
+# ML model files,
+#Dataset from ISOT fake new detection
 ml-service/models/*.pkl
-ml-service/data/*.csv
+ml-service/data/Fake.csv
+ml-service/data/True.csv 
+
 
 # Logs
 logs/
@@ -41,3 +44,4 @@ coverage/
 
 # Misc
 *.tgz
+

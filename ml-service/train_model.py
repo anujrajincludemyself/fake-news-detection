@@ -127,8 +127,19 @@ def load_dataset():
                 continue
 
         if label_col is None:
-            print(f'  WARNING: Could not find label column in {csv_file}, skipping.')
-            continue
+            # ISOT-style: label is implied by filename (Fake.csv -> 1, True.csv -> 0)
+            fname_lower = csv_file.lower()
+            if fname_lower.startswith('fake'):
+                df['label'] = 1
+                label_col = 'label'
+                print(f'  Inferred label=1 (FAKE) from filename.')
+            elif fname_lower.startswith('true') or fname_lower.startswith('real'):
+                df['label'] = 0
+                label_col = 'label'
+                print(f'  Inferred label=0 (REAL) from filename.')
+            else:
+                print(f'  WARNING: Could not find label column in {csv_file}, skipping.')
+                continue
 
         subset = df[[text_col, label_col]].copy()
         subset.columns = ['text', 'label']
