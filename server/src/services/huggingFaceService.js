@@ -33,10 +33,10 @@ class HuggingFaceService {
         return await fn();
       } catch (err) {
         lastError = err;
-        // Retry on model loading (503) or rate-limit (429)
-        const isTransient =
-          err.isLoading || err.isRateLimit ||
-          err.message?.includes('503') || err.message?.includes('loading');
+        // Stop immediately on rate-limit — retrying burns more quota
+        if (err.isRateLimit) throw err;
+        // Only retry when a model is still loading (503)
+        const isTransient = err.isLoading || err.message?.includes('loading');
         if (!isTransient || attempt === RETRY_DELAYS.length) break;
         await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
       }
