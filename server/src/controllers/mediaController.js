@@ -1,6 +1,7 @@
 const Analysis = require('../models/Analysis');
 const User = require('../models/User');
 const HuggingFaceService = require('../services/huggingFaceService');
+const GeminiService = require('../services/geminiService');
 const NLPAnalyzer = require('../services/nlpAnalyzer');
 const logger = require('../utils/logger');
 
@@ -17,11 +18,33 @@ exports.analyzeImage = async (req, res, next) => {
     }
 
     let prediction;
-    try {
-      prediction = await HuggingFaceService.analyzeImage(req.file.buffer, req.file.mimetype);
-    } catch (hfErr) {
-      logger.warn('HuggingFace image analysis failed, using NLP fallback:', hfErr.message);
+
+    // Tier 1: Gemini vision (multimodal, most accurate)
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        prediction = await GeminiService.analyzeImage(req.file.buffer, req.file.mimetype);
+        logger.info(`Image analysis via Gemini: ${prediction.label} (${prediction.confidence}%)`);
+      } catch (geminiErr) {
+        const reason = geminiErr.isRateLimit ? 'rate limit' : geminiErr.message;
+        logger.warn(`Gemini image analysis failed (${reason}), trying HuggingFace`);
+      }
+    }
+
+    // Tier 2: HuggingFace deepfake detector
+    if (!prediction && process.env.HUGGINGFACE_API_TOKEN) {
+      try {
+        prediction = await HuggingFaceService.analyzeImage(req.file.buffer, req.file.mimetype);
+        logger.info(`Image analysis via HuggingFace: ${prediction.label} (${prediction.confidence}%)`);
+      } catch (hfErr) {
+        const reason = hfErr.isRateLimit ? 'rate limit' : hfErr.message;
+        logger.warn(`HuggingFace image analysis failed (${reason}), using NLP fallback`);
+      }
+    }
+
+    // Tier 3: Local NLP fallback
+    if (!prediction) {
       prediction = NLPAnalyzer.analyze(`[Image file: ${req.file.originalname}]`);
+      logger.info('Image analysis via local NLP fallback');
     }
 
     const analysis = await Analysis.create({
