@@ -13,6 +13,8 @@ const logger = require('./utils/logger');
 const authRoutes = require('./routes/auth');
 const analysisRoutes = require('./routes/analysis');
 const mediaRoutes = require('./routes/media');
+const extensionRoutes = require('./routes/extension');
+const wallRoutes = require('./routes/wall');
 
 // Connect to database
 connectDB();
@@ -21,12 +23,31 @@ const app = express();
 
 // Security middleware
 app.use(helmet());
+
+// CORS — allow all origins in dev (API key secures the extension endpoint).
+// In production lock CLIENT_URL down via environment variable.
 app.use(
   cors({
-    origin: process.env.NODE_ENV === 'production'
-      ? process.env.CLIENT_URL
-      : ['http://localhost:3000', 'http://localhost:5173'],
-    credentials: true,
+    origin:
+      process.env.NODE_ENV === 'production'
+        ? (origin, cb) => {
+            const allowed = [
+              process.env.CLIENT_URL,
+              // extensions carry the news-site origin, allow them via keyword
+            ].filter(Boolean);
+            // allow if no origin, matches whitelist, or is a browser extension
+            if (
+              !origin ||
+              allowed.includes(origin) ||
+              /^chrome-extension:\/\//i.test(origin) ||
+              /^moz-extension:\/\//i.test(origin)
+            ) {
+              return cb(null, true);
+            }
+            cb(null, false); // silently deny, no error thrown
+          }
+        : '*', // development: allow everything
+    credentials: false,
   })
 );
 
@@ -46,9 +67,9 @@ const analysisLimiter = rateLimit({
 });
 app.use('/api/analysis', analysisLimiter);
 
-// Body parser
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// Body parser — 1 MB is ample for JSON (media uploads use multipart/form-data via multer)
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Logging
 if (process.env.NODE_ENV !== 'production') {
@@ -68,6 +89,8 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/media', mediaRoutes);
+app.use('/api/extension', extensionRoutes);
+app.use('/api/wall', wallRoutes);
 
 // Error handler
 app.use(errorHandler);

@@ -46,6 +46,7 @@ const Navbar = () => {
     { to: '/', label: 'Home' },
     { to: '/analyze', label: 'Analyze Text' },
     { to: '/media-analyze', label: 'Analyze Media' },
+    { to: '/wall-of-fake', label: 'Wall of Fake' },
     { to: '/about', label: 'About' },
   ];
 

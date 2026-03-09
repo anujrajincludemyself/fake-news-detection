@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>TruthLens Icon Generator</title>
+<style>
+  body { font-family: sans-serif; padding: 20px; background: #0f0f1a; color: #e2e8f0; }
+  h2 { margin-bottom: 16px; }
+  canvas { display: none; }
+  .grid { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .icon-preview { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  img { border: 1px solid #333; border-radius: 8px; background: #1e1e2e; }
+  a { display: inline-block; margin-top: 6px; padding: 6px 14px; background: #6366f1;
+      color: white; text-decoration: none; border-radius: 6px; font-size: 13px; }
+  p { margin-top: 20px; font-size: 13px; color: #94a3b8; }
+  code { background: #1e293b; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<h2>TruthLens — Generate PNG Icons</h2>
+<p>Click each download link to save the PNG, then place them in <code>extension/icons/</code></p>
+<div class="grid" id="grid"></div>
+
+<script>
+function drawIcon(size) {
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const cx = size / 2, cy = size / 2, r = size / 2;
+
+  // Background gradient
+  const bg = ctx.createRadialGradient(cx, cy - r * 0.1, 0, cx, cy, r);
+  bg.addColorStop(0, '#1a1a3e');
+  bg.addColorStop(1, '#0a0a1a');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = bg;
+  ctx.fill();
+
+  // Outer ring glow
+  ctx.strokeStyle = 'rgba(99,102,241,0.5)';
+  ctx.lineWidth = size * 0.06;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.85, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Eye outline
+  const eyeW = r * 1.1, eyeH = r * 0.55;
+  ctx.strokeStyle = '#818cf8';
+  ctx.lineWidth = size * 0.07;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, eyeW * 0.45, eyeH * 0.45, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Pupil
+  const pupilR = r * 0.22;
+  const pupilGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, pupilR);
+  pupilGrad.addColorStop(0, '#a5b4fc');
+  pupilGrad.addColorStop(1, '#6366f1');
+  ctx.beginPath();
+  ctx.arc(cx, cy, pupilR, 0, Math.PI * 2);
+  ctx.fillStyle = pupilGrad;
+  ctx.fill();
+
+  // Scan line effect
+  ctx.strokeStyle = 'rgba(165,180,252,0.15)';
+  ctx.lineWidth = size * 0.025;
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(cx - r, cy + i * (r * 0.22));
+    ctx.lineTo(cx + r, cy + i * (r * 0.22));
+    ctx.stroke();
+  }
+
+  return canvas;
+}
+
+const sizes = [16, 48, 128];
+const grid = document.getElementById('grid');
+
+sizes.forEach(size => {
+  const canvas = drawIcon(size);
+  const dataUrl = canvas.toDataURL('image/png');
+
+  const div = document.createElement('div');
+  div.className = 'icon-preview';
+
+  const img = document.createElement('img');
+  img.src = dataUrl;
+  img.width = Math.max(size, 48);
+  img.height = Math.max(size, 48);
+  img.style.imageRendering = size <= 16 ? 'pixelated' : 'auto';
+
+  const label = document.createElement('span');
+  label.textContent = `${size}×${size}`;
+  label.style.fontSize = '12px';
+  label.style.color = '#64748b';
+
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = `icon${size}.png`;
+  link.textContent = `↓ icon${size}.png`;
+
+  div.appendChild(img);
+  div.appendChild(label);
+  div.appendChild(link);
+  grid.appendChild(div);
+});
+</script>
+</body>
+</html>

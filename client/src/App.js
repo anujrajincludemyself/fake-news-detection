@@ -12,10 +12,17 @@ import HistoryPage from './pages/HistoryPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AboutPage from './pages/AboutPage';
+import WallOfFakePage from './pages/WallOfFakePage';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useSelector((state) => state.auth);
   return isAuthenticated ? children : <Navigate to="/login" replace />;
+}
+
+// Redirect logged-in users away from login/register
+function GuestRoute({ children }) {
+  const { isAuthenticated } = useSelector((state) => state.auth);
+  return isAuthenticated ? <Navigate to="/" replace /> : children;
 }
 
 function App() {
@@ -30,28 +37,15 @@ function App() {
       <Navbar />
       <main>
         <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/analyze" element={<AnalyzePage />} />
-          <Route path="/media-analyze" element={<MediaAnalyzePage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <DashboardPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/history"
-            element={
-              <ProtectedRoute>
-                <HistoryPage />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+          <Route path="/analyze" element={<ProtectedRoute><AnalyzePage /></ProtectedRoute>} />
+          <Route path="/media-analyze" element={<ProtectedRoute><MediaAnalyzePage /></ProtectedRoute>} />
+          <Route path="/wall-of-fake" element={<ProtectedRoute><WallOfFakePage /></ProtectedRoute>} />
+          <Route path="/about" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
+          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+          <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+          <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+          <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

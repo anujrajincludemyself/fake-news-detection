@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TruthLens</title>
+  <link rel="stylesheet" href="styles/popup.css" />
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="#818cf8" stroke-width="2"/>
+        <circle cx="12" cy="12" r="3" fill="#818cf8"/>
+        <circle cx="12" cy="12" r="6" stroke="#6366f1" stroke-width="1" stroke-dasharray="3 3"/>
+      </svg>
+      <span class="logo-text">TruthLens</span>
+    </div>
+    <span class="version">v1.0</span>
+  </header>
+
+  <!-- Stats row -->
+  <section class="stats-row" id="stats-row">
+    <div class="stat-card stat-total">
+      <div class="stat-num" id="stat-total">0</div>
+      <div class="stat-label">Analyzed</div>
+    </div>
+    <div class="stat-card stat-real">
+      <div class="stat-num" id="stat-real">0</div>
+      <div class="stat-label">Real</div>
+    </div>
+    <div class="stat-card stat-fake">
+      <div class="stat-num" id="stat-fake">0</div>
+      <div class="stat-label">Fake</div>
+    </div>
+    <div class="stat-card stat-uncertain">
+      <div class="stat-num" id="stat-uncertain">0</div>
+      <div class="stat-label">Uncertain</div>
+    </div>
+  </section>
+
+  <!-- Fake news ratio bar -->
+  <section class="ratio-section" id="ratio-section" style="display:none">
+    <div class="ratio-label">
+      <span>Credibility ratio</span>
+      <span id="ratio-text">—</span>
+    </div>
+    <div class="ratio-track">
+      <div class="ratio-fill-real" id="ratio-real"></div>
+      <div class="ratio-fill-uncertain" id="ratio-uncertain-fill"></div>
+      <div class="ratio-fill-fake" id="ratio-fake"></div>
+    </div>
+  </section>
+
+  <!-- Analyze controls -->
+  <div class="analyze-controls">
+    <div class="toggle-row">
+      <span class="toggle-label">Auto-analyze pages</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="auto-toggle" />
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+    <button class="analyze-now-btn" id="analyze-btn">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      Analyze This Page
+    </button>
+  </div>
+
+  <!-- Recent articles -->
+  <section class="recent-section">
+    <div class="section-header">
+      <span class="section-title">Recent Articles</span>
+      <button class="clear-btn" id="clear-btn">Clear all</button>
+    </div>
+    <div id="history-list">
+      <div class="empty-state" id="empty-state">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" opacity="0.3">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="currentColor" stroke-width="1.5"/>
+          <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+        <p>No articles analyzed yet.</p>
+        <p class="empty-hint">Visit a news site to get started.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="popup-footer">
+    <span>Server status</span>
+    <a id="server-status" class="server-dot" title="Server status">●</a>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

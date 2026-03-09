@@ -28,7 +28,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('fn_token');
       localStorage.removeItem('fn_user');
-      if (window.location.pathname !== '/login') {
+      const { pathname } = window.location;
+      if (pathname !== '/login' && pathname !== '/register') {
         window.location.href = '/login';
       }
     }

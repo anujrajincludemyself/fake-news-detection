@@ -55,6 +55,8 @@ export const analyzeVideo = createAsyncThunk(
   }
 );
 
+const STATS_TTL_MS = 60 * 1000;
+
 export const fetchHistory = createAsyncThunk(
   'analysis/fetchHistory',
   async (params = {}, { rejectWithValue }) => {
@@ -66,6 +68,10 @@ export const fetchHistory = createAsyncThunk(
         error.response?.data?.message || 'Failed to fetch history'
       );
     }
+  },
+  {
+    // Block duplicate in-flight calls (handles React StrictMode double-fire)
+    condition: (_, { getState }) => !getState().analysis.loading,
   }
 );
 
@@ -80,6 +86,15 @@ export const fetchStats = createAsyncThunk(
         error.response?.data?.message || 'Failed to fetch stats'
       );
     }
+  },
+  {
+    // condition runs BEFORE pending is dispatched — safe to check loading
+    condition: (_, { getState }) => {
+      const { statsLoading, statsLastFetched } = getState().analysis;
+      if (statsLoading) return false;
+      if (statsLastFetched && Date.now() - statsLastFetched < STATS_TTL_MS) return false;
+      return true;
+    },
   }
 );
 
@@ -102,7 +117,9 @@ const initialState = {
   history: [],
   stats: null,
   pagination: null,
-  loading: false,
+  loading: false,       // history fetch in-flight
+  statsLoading: false,  // stats fetch in-flight
+  statsLastFetched: null,
   analyzing: false,
   error: null,
 };
@@ -130,6 +147,7 @@ const analysisSlice = createSlice({
       .addCase(analyzeNews.fulfilled, (state, action) => {
         state.analyzing = false;
         state.currentAnalysis = action.payload;
+        state.statsLastFetched = null; // invalidate so dashboard re-fetches on next visit
       })
       .addCase(analyzeNews.rejected, (state, action) => {
         state.analyzing = false;
@@ -144,6 +162,7 @@ const analysisSlice = createSlice({
       .addCase(analyzeImage.fulfilled, (state, action) => {
         state.analyzing = false;
         state.currentAnalysis = action.payload;
+        state.statsLastFetched = null;
       })
       .addCase(analyzeImage.rejected, (state, action) => {
         state.analyzing = false;
@@ -158,6 +177,7 @@ const analysisSlice = createSlice({
       .addCase(analyzeVideo.fulfilled, (state, action) => {
         state.analyzing = false;
         state.currentAnalysis = action.payload;
+        state.statsLastFetched = null;
       })
       .addCase(analyzeVideo.rejected, (state, action) => {
         state.analyzing = false;
@@ -177,8 +197,16 @@ const analysisSlice = createSlice({
         state.error = action.payload;
       })
       // Stats
+      .addCase(fetchStats.pending, (state) => {
+        state.statsLoading = true;
+      })
       .addCase(fetchStats.fulfilled, (state, action) => {
+        state.statsLoading = false;
         state.stats = action.payload;
+        state.statsLastFetched = Date.now();
+      })
+      .addCase(fetchStats.rejected, (state) => {
+        state.statsLoading = false;
       })
       // Feedback
       .addCase(submitFeedback.fulfilled, (state, action) => {
