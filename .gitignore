@@ -32,6 +32,10 @@ Thumbs.db
 ml-service/models/*.pkl
 ml-service/data/Fake.csv
 ml-service/data/True.csv 
+ml-service/data/WELFake_Dataset.csv 
+ml-service/data/train.tsv
+ml-service/data/test.tsv
+ml-service/data/valid.tsv
 
 
 # Logs
