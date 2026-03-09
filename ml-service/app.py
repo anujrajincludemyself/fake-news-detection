@@ -197,6 +197,7 @@ def heuristic_predict(text: str) -> dict:
     return {
         'label': label,
         'confidence': round(confidence, 2),
+        'credibility_score': score,
         'details': {
             'sentimentScore': 0,
             'subjectivityScore': 0,
@@ -232,17 +233,31 @@ async def predict(request: PredictionRequest):
         try:
             processed = preprocess_text(text)
             features = vectorizer.transform([processed])
-            prediction = model.predict(features)[0]
             probabilities = model.predict_proba(features)[0]
 
-            label = 'FAKE' if prediction == 1 else 'REAL'
-            confidence = round(float(np.max(probabilities)) * 100, 2)
+            # P(FAKE) from ML model
+            ml_fake_prob = float(probabilities[1])
 
-            if confidence < 55:
-                label = 'UNCERTAIN'
-
-            # Run heuristic for additional details
+            # Run heuristic for credibility signals and details
             heuristic = heuristic_predict(text)
+            # Convert heuristic credibility score (0=fake, 100=real) to fake probability
+            heuristic_credibility = heuristic.get('credibility_score', 50)
+            heuristic_fake_prob = 1.0 - (heuristic_credibility / 100.0)
+
+            # Blend: the ISOT-trained model is biased toward FAKE due to domain-specific
+            # writing-style patterns (Reuters vs WorldNetDaily). Calibrate by weighting
+            # in the heuristic's source-agnostic credibility signals.
+            blended = 0.55 * ml_fake_prob + 0.45 * heuristic_fake_prob
+
+            if blended >= 0.65:
+                label = 'FAKE'
+                confidence = round(blended * 100, 2)
+            elif blended <= 0.35:
+                label = 'REAL'
+                confidence = round((1.0 - blended) * 100, 2)
+            else:
+                label = 'UNCERTAIN'
+                confidence = round(max(blended, 1.0 - blended) * 100, 2)
 
             return {
                 'label': label,
