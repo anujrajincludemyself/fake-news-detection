@@ -17,11 +17,12 @@ export const analyzeNews = createAsyncThunk(
 
 export const analyzeImage = createAsyncThunk(
   'analysis/analyzeImage',
-  async ({ file, title }, { rejectWithValue }) => {
+  async ({ file, title, claim }, { rejectWithValue }) => {
     try {
       const formData = new FormData();
       formData.append('file', file);
       if (title) formData.append('title', title);
+      if (claim) formData.append('claim', claim);
       const { data } = await api.post('/media/image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 60000,
