@@ -37,8 +37,8 @@ import pandas as pd
 import nltk
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.calibration import CalibratedClassifierCV
+from features import StructuralFeatureExtractor
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression, PassiveAggressiveClassifier
 from sklearn.pipeline import Pipeline, FeatureUnion
@@ -96,93 +96,8 @@ def preprocess_text(text):
     return ' '.join(words)
 
 
-# ─────────────────────────────────────────────────────────
-# STRUCTURAL FEATURE EXTRACTOR
-# These features capture writing style signals that are
-# source-agnostic (not tied to Reuters vs WorldNetDaily
-# vocabulary), which reduces domain-bias in the model.
-# ─────────────────────────────────────────────────────────
-
-SOURCE_PATTERNS = [
-    r'according to', r'reported by', r'study shows', r'research finds',
-    r'officials said', r'spokesperson', r'published in', r'per reports',
-    r'confirmed by', r'sources say',
-]
-
-CLICKBAIT_PATTERNS = [
-    r"you won't believe", r'shocking', r'mind.blowing', r'what happens next',
-    r'exposed', r'they don.t want you to know', r'unbelievable', r'jaw.dropping',
-    r'secret revealed', r'must see',
-]
-
-EMOTIONAL_WORDS = {
-    'outrage', 'fury', 'terrifying', 'devastating', 'horrifying',
-    'incredible', 'disgusting', 'destroy', 'catastrophe', 'panic',
-    'bombshell', 'explosive', 'chaos', 'scandal', 'nightmare', 'hoax',
-}
-
-
-class StructuralFeatureExtractor(BaseEstimator, TransformerMixin):
-    """Extract writing-style features that are independent of topic vocabulary."""
-
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        return np.array([self._features(text) for text in X], dtype=np.float32)
-
-    def _features(self, text):
-        if not isinstance(text, str) or not text.strip():
-            return np.zeros(12, dtype=np.float32)
-
-        words = text.split()
-        sentences = re.split(r'[.!?]+', text)
-        sentences = [s.strip() for s in sentences if s.strip()]
-        word_count = max(len(words), 1)
-        text_lower = text.lower()
-
-        # 1. Avg word length (fake news tends toward shorter, punchy words)
-        avg_word_len = np.mean([len(w) for w in words]) if words else 0
-
-        # 2. Avg sentence length
-        avg_sent_len = np.mean([len(s.split()) for s in sentences]) if sentences else 0
-
-        # 3. Caps ratio (excessive caps = sensationalism)
-        caps_ratio = sum(1 for c in text if c.isupper()) / max(len(text), 1)
-
-        # 4. Exclamation density
-        excl_density = text.count('!') / word_count
-
-        # 5. Question mark density
-        quest_density = text.count('?') / word_count
-
-        # 6. Quote usage (real news quotes sources)
-        quote_density = (text.count('"') + text.count("'")) / word_count
-
-        # 7. Has source attribution
-        has_source = float(any(re.search(p, text_lower) for p in SOURCE_PATTERNS))
-
-        # 8. Clickbait score (0–1 normalized)
-        clickbait_count = sum(1 for p in CLICKBAIT_PATTERNS if re.search(p, text_lower))
-        clickbait_score = min(clickbait_count / 3.0, 1.0)
-
-        # 9. Emotional word density
-        emotional_density = sum(1 for w in words if w.lower() in EMOTIONAL_WORDS) / word_count
-
-        # 10. Has statistical claims
-        has_stats = float(bool(re.search(r'\d+(\.\d+)?%|\d+ percent|\$[\d,.]+', text)))
-
-        # 11. Lexical diversity (unique words / total words)
-        lexical_diversity = len(set(w.lower() for w in words)) / word_count
-
-        # 12. Text length (log-scaled)
-        text_len = np.log1p(word_count)
-
-        return np.array([
-            avg_word_len, avg_sent_len, caps_ratio, excl_density,
-            quest_density, quote_density, has_source, clickbait_score,
-            emotional_density, has_stats, lexical_diversity, text_len,
-        ], dtype=np.float32)
+# StructuralFeatureExtractor is imported from features.py (shared with app.py)
+# so joblib can correctly pickle/unpickle it across both scripts.
 
 
 def load_liar_tsv(filepath, filename):

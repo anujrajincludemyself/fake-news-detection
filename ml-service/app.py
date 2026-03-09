@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
+from features import StructuralFeatureExtractor
 from PIL import Image, ImageChops, ImageEnhance, ExifTags
 
 # Setup
@@ -69,10 +70,13 @@ def load_model():
         model = joblib.load(model_path)
         vectorizer = joblib.load(vectorizer_path)
         if os.path.exists(struct_path):
-            struct_extractor = joblib.load(struct_path)
-            logger.info('Trained model + structural extractor loaded successfully.')
+            try:
+                struct_extractor = joblib.load(struct_path)
+                logger.info('Trained model + structural extractor loaded successfully.')
+            except Exception as e:
+                logger.warning(f'Could not load structural extractor ({e}). Retrain the model.')
         else:
-            logger.info('Trained model loaded (no structural extractor found — old model).')
+            logger.info('Trained model loaded (no structural extractor — old model).')
         return True
     else:
         logger.warning('No trained model found. Service will use heuristic analysis.')
