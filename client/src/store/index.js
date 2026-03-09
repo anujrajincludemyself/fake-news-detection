@@ -3,6 +3,7 @@ import authReducer from './slices/authSlice';
 import analysisReducer from './slices/analysisSlice';
 import uiReducer from './slices/uiSlice';
 import wallReducer from './slices/wallSlice';
+import rankingReducer from './slices/rankingSlice';
 
 const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ const store = configureStore({
     analysis: analysisReducer,
     ui: uiReducer,
     wall: wallReducer,
+    ranking: rankingReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

@@ -15,6 +15,7 @@ const analysisRoutes = require('./routes/analysis');
 const mediaRoutes = require('./routes/media');
 const extensionRoutes = require('./routes/extension');
 const wallRoutes = require('./routes/wall');
+const rankingRoutes = require('./routes/ranking');
 
 // Connect to database
 connectDB();
@@ -91,6 +92,7 @@ app.use('/api/analysis', analysisRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/extension', extensionRoutes);
 app.use('/api/wall', wallRoutes);
+app.use('/api/ranking', rankingRoutes);
 
 // Error handler
 app.use(errorHandler);

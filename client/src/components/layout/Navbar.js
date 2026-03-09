@@ -45,6 +45,7 @@ const Navbar = () => {
   const navLinks = [
     { to: '/', label: 'Home' },
     { to: '/wall-of-fake', label: 'Wall of Fake' },
+    { to: '/rankings', label: 'Rankings' },
     { to: '/about', label: 'About' },
   ];
 
