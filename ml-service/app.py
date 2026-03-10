@@ -42,6 +42,7 @@ stop_words = set(stopwords.words('english'))
 model = None
 vectorizer = None
 struct_extractor = None
+yolo_model = None
 
 
 def preprocess_text(text: str) -> str:
@@ -84,9 +85,23 @@ def load_model():
         return False
 
 
+def load_yolo_model():
+    """Load YOLOv8n pretrained model for object detection in video analysis."""
+    global yolo_model
+    try:
+        from ultralytics import YOLO
+        local_path = os.path.join(MODELS_DIR, 'yolov8n.pt')
+        model_path = local_path if os.path.exists(local_path) else 'yolov8n.pt'
+        yolo_model = YOLO(model_path)
+        logger.info(f'YOLOv8n model loaded from {model_path}.')
+    except Exception as e:
+        logger.warning(f'Could not load YOLOv8n model ({e}). Object-detection layer will be skipped.')
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_model()
+    load_yolo_model()
     yield
 
 
@@ -300,6 +315,7 @@ async def model_info():
         'model_type': type(model).__name__ if model else None,
         'vectorizer_loaded': vectorizer is not None,
         'structural_extractor_loaded': struct_extractor is not None,
+        'yolo_loaded': yolo_model is not None,
     }
 
 
@@ -591,10 +607,80 @@ def analyze_frame_noise(frames: list) -> dict:
     }
 
 
+def analyze_yolo_detections(frames: list) -> dict:
+    """
+    Run YOLOv8n object detection across frames and flag temporal inconsistencies.
+
+    Signals used:
+    - High object-count variation across frames (sudden appearances/removals)
+    - Classes that exist in isolated frames only (splice indicator)
+    - Implausible person bounding-box aspect ratios (deepfake / compositing)
+    """
+    if yolo_model is None:
+        return {'available': False}
+
+    frame_detections = []
+    for frame in frames:
+        pil_img = Image.fromarray(frame)
+        results = yolo_model(pil_img, verbose=False)[0]
+        boxes = results.boxes
+        detections = []
+        if boxes is not None and len(boxes):
+            for box in boxes:
+                cls_id = int(box.cls[0])
+                cls_name = yolo_model.names[cls_id]
+                conf = float(box.conf[0])
+                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                w = x2 - x1
+                h = y2 - y1
+                detections.append({
+                    'class': cls_name,
+                    'confidence': round(conf, 3),
+                    'aspect_ratio': round(w / h if h > 0 else 0.0, 3),
+                })
+        frame_detections.append(detections)
+
+    # --- object-count variation ---
+    object_counts = [len(d) for d in frame_detections]
+    mean_count = float(np.mean(object_counts)) if object_counts else 0
+    std_count = float(np.std(object_counts)) if object_counts else 0
+    count_variation = std_count / mean_count if mean_count > 0 else 0
+
+    # --- class-set consistency: classes isolated to a single frame ---
+    classes_per_frame = [set(d['class'] for d in det) for det in frame_detections]
+    class_anomalies = 0
+    for i in range(1, len(classes_per_frame) - 1):
+        isolated = classes_per_frame[i] - classes_per_frame[i - 1] - classes_per_frame[i + 1]
+        class_anomalies += len(isolated)
+
+    # --- person aspect-ratio check (normal range ~0.35–0.75 for standing person) ---
+    person_anomalies = 0
+    for det in frame_detections:
+        for d in det:
+            if d['class'] == 'person':
+                ar = d['aspect_ratio']
+                if ar < 0.2 or ar > 1.5:
+                    person_anomalies += 1
+
+    return {
+        'available': True,
+        'frames_analyzed': len(frames),
+        'object_count_mean': round(mean_count, 2),
+        'object_count_std': round(std_count, 2),
+        'count_variation': round(count_variation, 4),
+        'class_anomalies': class_anomalies,
+        'person_anomalies': person_anomalies,
+        'high_count_variation': count_variation > 0.6,
+        'has_class_anomalies': class_anomalies > 2,
+        'has_person_anomalies': person_anomalies > 0,
+    }
+
+
 def analyze_video_frames(frames: list, video_meta: dict) -> dict:
-    """Run full video forensic analysis."""
+    """Run full video forensic analysis including YOLOv8n object consistency."""
     consistency = analyze_frame_consistency(frames)
     noise = analyze_frame_noise(frames)
+    yolo = analyze_yolo_detections(frames)
 
     # Run image-level ELA on sampled frames
     frame_ela_scores = []
@@ -628,6 +714,15 @@ def analyze_video_frames(frames: list, video_meta: dict) -> dict:
     if video_meta['fps'] < 10 or video_meta['fps'] > 120:
         score += 10
 
+    # YOLOv8n object-detection signals
+    if yolo.get('available'):
+        if yolo['high_count_variation']:
+            score += 15  # objects appear/disappear suddenly
+        if yolo['has_class_anomalies']:
+            score += 20  # object classes isolated to single frames
+        if yolo['has_person_anomalies']:
+            score += 10  # implausible person proportions
+
     score = min(100, max(0, score))
 
     if score >= 50:
@@ -650,6 +745,7 @@ def analyze_video_frames(frames: list, video_meta: dict) -> dict:
             'video_info': video_meta,
             'frame_consistency': consistency,
             'noise_analysis': noise,
+            'yolo_object_analysis': yolo,
             'avg_ela_score': round(avg_ela, 5),
             'manipulation_score': score,
             'frames_analyzed': len(frames),
