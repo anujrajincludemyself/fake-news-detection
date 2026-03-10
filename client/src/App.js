@@ -40,7 +40,7 @@ function App() {
           <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
           <Route path="/analyze" element={<ProtectedRoute><AnalyzePage /></ProtectedRoute>} />
           <Route path="/media-analyze" element={<ProtectedRoute><MediaAnalyzePage /></ProtectedRoute>} />
-          <Route path="/wall-of-fake" element={<ProtectedRoute><WallOfFakePage /></ProtectedRoute>} />
+          <Route path="/wall-of-fake" element={<WallOfFakePage />} />
           <Route path="/about" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />

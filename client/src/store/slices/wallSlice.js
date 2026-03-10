@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+// Lazy import via string-matching to avoid circular deps — see addMatcher below
 
 const CACHE_TTL_MS = 60 * 1000;
 
@@ -51,7 +52,18 @@ const wallSlice = createSlice({
       .addCase(fetchWall.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
-      });
+      })
+      // Invalidate our cache whenever an article analysis finishes — server just updated SiteRecord
+      .addMatcher(
+        (action) => [
+          'analysis/analyze/fulfilled',
+          'analysis/analyzeImage/fulfilled',
+          'analysis/analyzeVideo/fulfilled',
+        ].includes(action.type),
+        (state) => {
+          state.lastFetched = null;
+        }
+      );
   },
 });
 

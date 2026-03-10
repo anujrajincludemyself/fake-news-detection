@@ -1,43 +1,9 @@
 import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiRefreshCw } from 'react-icons/fi';
+import { FiAlertCircle, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
 import { fetchWall, resetFetched } from '../store/slices/wallSlice';
 import './WallOfFakePage.css';
-
-const RISK_GROUPS = [
-  {
-    key: 'high',
-    label: 'High Risk',
-    subtitle: '70%+ articles flagged as fake',
-    icon: <FiAlertTriangle />,
-    colorClass: 'risk-high',
-    filter: (s) => s.fakeScore >= 70,
-  },
-  {
-    key: 'moderate',
-    label: 'Moderate Risk',
-    subtitle: '40–69% articles flagged as fake',
-    icon: <FiAlertCircle />,
-    colorClass: 'risk-moderate',
-    filter: (s) => s.fakeScore >= 40 && s.fakeScore < 70,
-  },
-  {
-    key: 'low',
-    label: 'Low Risk',
-    subtitle: 'Under 40% articles flagged as fake',
-    icon: <FiCheckCircle />,
-    colorClass: 'risk-low',
-    filter: (s) => s.fakeScore < 40,
-  },
-];
-
-const VERDICT_COLORS = {
-  REAL: '#4ade80',
-  FAKE: '#f87171',
-  UNCERTAIN: '#fbbf24',
-  SATIRE: '#c084fc',
-};
 
 function timeAgo(ts) {
   if (!ts) return '';
@@ -50,62 +16,116 @@ function timeAgo(ts) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function SiteCard({ site, rank }) {
-  const total = site.totalScans || 1;
-  const realPct  = (site.realCount  / total) * 100;
-  const fakePct  = (site.fakeCount  / total) * 100;
-  const uncertPct = Math.max(0, 100 - realPct - fakePct);
+function getFakeIndex(site) {
+  if (!site.realCount) {
+    return site.fakeCount > 0 ? 999 : 0;
+  }
+  return Math.round((site.fakeCount / site.realCount) * 100);
+}
+
+function getFakeIndexColor(fi) {
+  if (fi >= 200) return '#f87171';
+  if (fi >= 80) return '#fb923c';
+  if (fi >= 40) return '#fbbf24';
+  return '#4ade80';
+}
+
+function getAvatarColor(domain) {
+  const colors = [
+    '#a855f7', '#6366f1', '#ec4899', '#f97316',
+    '#14b8a6', '#3b82f6', '#ef4444', '#84cc16',
+  ];
+  let hash = 0;
+  for (let i = 0; i < domain.length; i++) hash = domain.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
+/* ─── Podium Card (top 3) ──────────────────────────────────── */
+const rankLabels = { 1: '1st', 2: '2nd', 3: '3rd' };
+const podiumHeights = { 1: 140, 2: 110, 3: 90 };
+
+function PodiumCard({ site, rank }) {
+  const fi = getFakeIndex(site);
+  const fiColor = getFakeIndexColor(fi);
+  const avatarColor = getAvatarColor(site.domain);
 
   return (
     <motion.div
-      className="wof-card"
-      layout
-      initial={{ opacity: 0, y: 10 }}
+      className={`wof-podium-slot rank-${rank}`}
+      initial={{ opacity: 0, y: 30 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      transition={{ duration: 0.22 }}
+      transition={{ delay: rank * 0.1, duration: 0.4 }}
     >
-      <div className="wof-card-top">
-        <span className="wof-rank">#{rank}</span>
-        <div className="wof-domain-wrap">
-          <span className="wof-domain">{site.domain}</span>
-          <span className="wof-last-scanned">{timeAgo(site.lastScannedAt)}</span>
+      {/* Card above the pedestal */}
+      <div className="wof-pedestal-card">
+        <span className={`wof-rank-badge wof-rank-badge-${rank}`}>{rankLabels[rank]}</span>
+        <div
+          className="wof-podium-avatar"
+          style={{ background: avatarColor }}
+        >
+          {site.domain.charAt(0).toUpperCase()}
         </div>
-        <span className={`wof-score-badge ${
-          site.fakeScore >= 70 ? 'badge-high' : site.fakeScore >= 40 ? 'badge-mod' : 'badge-low'
-        }`}>
-          {site.fakeScore}% fake
-        </span>
+        <div className="wof-podium-domain">{site.domain}</div>
+        <div className="wof-podium-time">{timeAgo(site.lastScannedAt)}</div>
+
+        <div className="wof-fake-index-badge" style={{ color: fiColor, borderColor: fiColor }}>
+          <span className="wof-fi-label">Fake Index</span>
+          <span className="wof-fi-value">{fi === 999 ? '∞' : fi}</span>
+        </div>
+
+        <div className="wof-podium-pills">
+          <span className="wof-pill pill-fake">{site.fakeCount} Fake</span>
+          <span className="wof-pill pill-real">{site.realCount} Real</span>
+          <span className="wof-pill pill-total">{site.totalScans} scans</span>
+        </div>
       </div>
 
-      <div className="wof-bar">
-        <div className="wof-bar-seg wof-real-seg"  style={{ width: `${realPct}%` }} />
-        <div className="wof-bar-seg wof-uncert-seg" style={{ width: `${uncertPct}%` }} />
-        <div className="wof-bar-seg wof-fake-seg"  style={{ width: `${fakePct}%` }} />
+      {/* Pedestal block */}
+      <div
+        className="wof-pedestal-base"
+        style={{ height: podiumHeights[rank], background: fiColor + '18', borderTop: `2px solid ${fiColor}` }}
+      >
+        <span className="wof-pedestal-rank">#{rank}</span>
       </div>
-
-      <div className="wof-pills">
-        <span className="wof-pill pill-real">✓ {site.realCount} Real</span>
-        <span className="wof-pill pill-fake">✗ {site.fakeCount} Fake</span>
-        <span className="wof-pill pill-uncert">? {site.uncertainCount + site.satirCount} Uncertain</span>
-        <span className="wof-pill pill-total">{site.totalScans} scans</span>
-      </div>
-
-      {site.recentArticles && site.recentArticles.length > 0 && (
-        <ul className="wof-articles">
-          {site.recentArticles.map((a, i) => (
-            <li key={i} className="wof-article">
-              <span className="wof-a-dot" style={{ background: VERDICT_COLORS[a.verdict] || '#94a3b8' }} />
-              <span className="wof-a-title">{a.title || '(no title)'}</span>
-              <span className="wof-a-conf">{a.confidence}%</span>
-            </li>
-          ))}
-        </ul>
-      )}
     </motion.div>
   );
 }
 
+/* ─── Leaderboard Row (rank 4+) ────────────────────────────── */
+function LeaderRow({ site, rank }) {
+  const fi = getFakeIndex(site);
+  const fiColor = getFakeIndexColor(fi);
+  const avatarColor = getAvatarColor(site.domain);
+
+  return (
+    <motion.div
+      className="wof-row"
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: (rank - 3) * 0.05, duration: 0.3 }}
+    >
+      <span className="wof-row-rank">{rank}</span>
+      <div className="wof-row-avatar" style={{ background: avatarColor }}>
+        {site.domain.charAt(0).toUpperCase()}
+      </div>
+      <div className="wof-row-info">
+        <span className="wof-row-domain">{site.domain}</span>
+        <span className="wof-row-meta">
+          {site.fakeCount} Fake &nbsp;·&nbsp; {site.realCount} Real &nbsp;·&nbsp; {site.totalScans} scans
+        </span>
+      </div>
+      <div className="wof-row-right">
+        <span className="wof-row-time">{timeAgo(site.lastScannedAt)}</span>
+        <span className="wof-row-fi" style={{ color: fiColor }}>
+          <span className="wof-row-fi-label">Fake Index: </span>
+          {fi === 999 ? '∞' : fi}
+        </span>
+      </div>
+    </motion.div>
+  );
+}
+
+/* ─── Main Page ─────────────────────────────────────────────── */
 const WallOfFakePage = () => {
   const dispatch = useDispatch();
   const { sites, loading, error } = useSelector((state) => state.wall);
@@ -115,8 +135,13 @@ const WallOfFakePage = () => {
 
   const handleRefresh = () => {
     dispatch(resetFetched());
-    dispatch(fetchWall()); // resetFetched is synchronous; condition sees lastFetched=null
+    dispatch(fetchWall());
   };
+
+  // Sort by Fake Index descending
+  const sorted = [...sites].sort((a, b) => getFakeIndex(b) - getFakeIndex(a));
+  const top3 = sorted.slice(0, 3);
+  const rest = sorted.slice(3);
 
   const totalScans = sites.reduce((sum, s) => sum + s.totalScans, 0);
 
@@ -124,16 +149,20 @@ const WallOfFakePage = () => {
     <div className="wof-page">
       <div className="container">
 
+        {/* Header */}
         <div className="wof-header">
           <div className="wof-header-left">
             <h1 className="wof-title">Wall of Fake</h1>
             <p className="wof-subtitle">
-              News sites ranked by credibility — built from community scans via TruthLens.
+              News sites ranked by Fake Index — the ratio of fake to real articles detected.
             </p>
             {sites.length > 0 && (
               <div className="wof-chips">
                 <span className="wof-chip">{sites.length} sites tracked</span>
                 <span className="wof-chip">{totalScans} articles scanned</span>
+                <span className="wof-chip wof-chip-info">
+                  Fake Index = fake ÷ real × 100
+                </span>
               </div>
             )}
           </div>
@@ -143,12 +172,12 @@ const WallOfFakePage = () => {
           </button>
         </div>
 
-        {error && <div className="wof-error">⚠ {error}</div>}
+        {error && <div className="wof-error"><FiAlertTriangle size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />{error}</div>}
 
         {loading && !sites.length && (
           <div className="wof-loading">
             <div className="wof-spinner" />
-            <p>Loading credibility data…</p>
+            <p>Loading leaderboard…</p>
           </div>
         )}
 
@@ -156,34 +185,46 @@ const WallOfFakePage = () => {
           <div className="wof-empty">
             <FiAlertCircle size={40} opacity={0.3} />
             <h3>No data yet</h3>
-            <p>Scan articles via the TruthLens extension or the Analyze page to start building the Wall of Fake.</p>
+            <p>Scan articles via the Analyze page to start building the Wall of Fake.</p>
           </div>
         )}
 
-        {RISK_GROUPS.map((group) => {
-          const grouped = sites.filter(group.filter);
-          if (!grouped.length) return null;
-          return (
-            <section key={group.key} className={`wof-group ${group.colorClass}`}>
-              <div className="wof-group-header">
-                <span className="wof-group-icon">{group.icon}</span>
-                <div>
-                  <div className="wof-group-label">{group.label}</div>
-                  <div className="wof-group-meta">
-                    {group.subtitle} &nbsp;·&nbsp; <strong>{grouped.length}</strong> site{grouped.length !== 1 ? 's' : ''}
-                  </div>
+        {sorted.length > 0 && (
+          <>
+            {/* ── Podium ── */}
+            {top3.length > 0 && (
+              <div className="wof-podium-wrap">
+                <h2 className="wof-section-title">Top Offenders</h2>
+                <div className="wof-podium">
+                  {/* Reorder visually: 2 | 1 | 3 */}
+                  {top3.length >= 2 && <PodiumCard site={top3[1]} rank={2} />}
+                  {top3.length >= 1 && <PodiumCard site={top3[0]} rank={1} />}
+                  {top3.length >= 3 && <PodiumCard site={top3[2]} rank={3} />}
                 </div>
               </div>
-              <div className="wof-grid">
-                <AnimatePresence mode="popLayout">
-                  {grouped.map((site, i) => (
-                    <SiteCard key={site.domain} site={site} rank={i + 1} />
-                  ))}
-                </AnimatePresence>
+            )}
+
+            {/* ── Leaderboard list ── */}
+            {rest.length > 0 && (
+              <div className="wof-leaderboard-wrap">
+                <h2 className="wof-section-title">Full Rankings</h2>
+                <div className="wof-leaderboard">
+                  <div className="wof-leaderboard-header">
+                    <span>Rank</span>
+                    <span>Site</span>
+                    <span></span>
+                    <span className="wof-lh-right">Fake Index</span>
+                  </div>
+                  <AnimatePresence>
+                    {rest.map((site, i) => (
+                      <LeaderRow key={site.domain} site={site} rank={i + 4} />
+                    ))}
+                  </AnimatePresence>
+                </div>
               </div>
-            </section>
-          );
-        })}
+            )}
+          </>
+        )}
 
       </div>
     </div>
@@ -191,4 +232,3 @@ const WallOfFakePage = () => {
 };
 
 export default WallOfFakePage;
-
