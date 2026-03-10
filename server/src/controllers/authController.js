@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const logger = require('../utils/logger');
+const { sendToToken } = require('../services/firebaseService');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -12,7 +13,7 @@ const generateToken = (id) => {
 // @route   POST /api/auth/register
 exports.register = async (req, res, next) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, fcmToken } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -22,10 +23,25 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    const user = await User.create({ name, email, password });
+    const userData = { name, email, password };
+    if (fcmToken && typeof fcmToken === 'string') {
+      userData.fcmTokens = [fcmToken];
+    }
+
+    const user = await User.create(userData);
     const token = generateToken(user._id);
 
     logger.info(`New user registered: ${email}`);
+
+    // Send welcome push notification if FCM token was provided
+    if (fcmToken) {
+      sendToToken(
+        fcmToken,
+        'Welcome to Tasdeeq!',
+        `Hi ${name}, you're all set. Start analysing news for credibility.`,
+        { type: 'welcome' }
+      ).catch((err) => logger.warn('Welcome FCM failed:', err.message));
+    }
 
     res.status(201).json({
       success: true,

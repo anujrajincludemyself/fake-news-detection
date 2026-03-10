@@ -17,9 +17,9 @@ import './MediaAnalyzePage.css';
 
 const MediaAnalyzePage = () => {
   const dispatch = useDispatch();
-  const { currentAnalysis, analyzing, error } = useSelector(
-    (state) => state.analysis
-  );
+  const currentAnalysis = useSelector((state) => state.analysis.currentAnalysis);
+  const analyzing = useSelector((state) => state.analysis.analyzing);
+  const error = useSelector((state) => state.analysis.error);
 
   const [mode, setMode] = useState('image'); // 'image' or 'video'
   const [file, setFile] = useState(null);

@@ -14,9 +14,9 @@ import './AnalyzePage.css';
 
 const AnalyzePage = () => {
   const dispatch = useDispatch();
-  const { currentAnalysis, analyzing, error } = useSelector(
-    (state) => state.analysis
-  );
+  const currentAnalysis = useSelector((state) => state.analysis.currentAnalysis);
+  const analyzing = useSelector((state) => state.analysis.analyzing);
+  const error = useSelector((state) => state.analysis.error);
 
   const [formData, setFormData] = useState({
     title: '',

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
@@ -23,6 +23,30 @@ import './DashboardPage.css';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
+// Static config — defined outside component to avoid recreation on every render
+const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      position: 'bottom',
+      labels: {
+        color: '#94a3b8',
+        padding: 16,
+        font: { size: 12, weight: 600 },
+      },
+    },
+  },
+  cutout: '65%',
+};
+
+const formatDate = (date) =>
+  new Date(date).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
 const VERDICT_COLOR = {
   REAL:        '#4ade80',
   FAKE:        '#f87171',
@@ -33,8 +57,9 @@ const VERDICT_COLOR = {
 
 const DashboardPage = () => {
   const dispatch = useDispatch();
-  const { stats, statsLoading } = useSelector((state) => state.analysis);
-  const { user } = useSelector((state) => state.auth);
+  const stats = useSelector((state) => state.analysis.stats);
+  const statsLoading = useSelector((state) => state.analysis.statsLoading);
+  const user = useSelector((state) => state.auth.user);
 
   useEffect(() => {
     dispatch(fetchStats());
@@ -67,31 +92,7 @@ const DashboardPage = () => {
       }
     : null;
 
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: {
-          color: '#94a3b8',
-          padding: 16,
-          font: { size: 12, weight: 600 },
-        },
-      },
-    },
-    cutout: '65%',
-  };
-
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const statCards = [
+  const statCards = useMemo(() => [
     {
       label: 'TOTAL ANALYSES',
       value: statsLoading && !stats ? '…' : (stats?.totalAnalyses ?? 0),
@@ -120,7 +121,8 @@ const DashboardPage = () => {
       color: 'yellow',
       sub: `Avg ${stats?.labels?.UNCERTAIN?.avgConfidence ?? 0}% confidence`,
     },
-  ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [stats, statsLoading]);
 
   return (
     <div className="dashboard-page">

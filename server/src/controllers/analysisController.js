@@ -111,6 +111,15 @@ exports.getAnalysis = async (req, res, next) => {
       });
     }
 
+    // Ownership check — only the owner (or admin) may see the full content
+    if (
+      analysis.user &&
+      analysis.user.toString() !== req.user._id.toString() &&
+      req.user.role !== 'admin'
+    ) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
     res.status(200).json({
       success: true,
       data: analysis,

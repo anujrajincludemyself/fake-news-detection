@@ -15,11 +15,16 @@ const analysisRoutes = require('./routes/analysis');
 const mediaRoutes = require('./routes/media');
 const extensionRoutes = require('./routes/extension');
 const wallRoutes = require('./routes/wall');
+const notificationRoutes = require('./routes/notifications');
 
 // Connect to database
 connectDB();
 
 const app = express();
+
+// Trust the first proxy hop (required on Render, Railway, Heroku, etc.)
+// so that express-rate-limit can correctly read the client IP from X-Forwarded-For.
+app.set('trust proxy', 1);
 
 // Security middleware
 app.use(helmet());
@@ -91,6 +96,7 @@ app.use('/api/analysis', analysisRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/extension', extensionRoutes);
 app.use('/api/wall', wallRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Error handler
 app.use(errorHandler);

@@ -128,10 +128,11 @@ function LeaderRow({ site, rank }) {
 /* ─── Main Page ─────────────────────────────────────────────── */
 const WallOfFakePage = () => {
   const dispatch = useDispatch();
-  const { sites, loading, error } = useSelector((state) => state.wall);
+  const sites = useSelector((state) => state.wall.sites);
+  const loading = useSelector((state) => state.wall.loading);
+  const error = useSelector((state) => state.wall.error);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { dispatch(fetchWall()); }, []);
+  useEffect(() => { dispatch(fetchWall()); }, [dispatch]);
 
   const handleRefresh = () => {
     dispatch(resetFetched());
@@ -161,7 +162,7 @@ const WallOfFakePage = () => {
                 <span className="wof-chip">{sites.length} sites tracked</span>
                 <span className="wof-chip">{totalScans} articles scanned</span>
                 <span className="wof-chip wof-chip-info">
-                  Fake Index = fake ÷ real × 100
+                  Fake Index = real ÷ fake × 100
                 </span>
               </div>
             )}

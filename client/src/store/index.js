@@ -13,7 +13,10 @@ const store = configureStore({
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
-      serializableCheck: false,
+      // Only ignore the non-serializable Date.now() used in TTL fields
+      serializableCheck: {
+        ignoredPaths: ['analysis.statsLastFetched', 'wall.lastFetched'],
+      },
     }),
   devTools: process.env.NODE_ENV !== 'production',
 });

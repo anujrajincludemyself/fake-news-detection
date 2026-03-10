@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../services/api';
+import { initNotifications, removeNotificationToken } from '../../services/notificationService';
 
 // Thunks
 export const loginUser = createAsyncThunk(
@@ -61,6 +62,12 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     logout: (state) => {
+      // Remove stored FCM token from backend before clearing local state
+      const storedToken = localStorage.getItem('fn_fcm_token');
+      if (storedToken) {
+        removeNotificationToken(storedToken).catch(() => {});
+        localStorage.removeItem('fn_fcm_token');
+      }
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;

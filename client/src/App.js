@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import { initNotifications } from './services/notificationService';
 
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
@@ -15,22 +16,30 @@ import AboutPage from './pages/AboutPage';
 import WallOfFakePage from './pages/WallOfFakePage';
 
 function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
   return isAuthenticated ? children : <Navigate to="/login" replace />;
 }
 
 // Redirect logged-in users away from login/register
 function GuestRoute({ children }) {
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
   return isAuthenticated ? <Navigate to="/" replace /> : children;
 }
 
 function App() {
-  const { theme } = useSelector((state) => state.ui);
+  const theme = useSelector((state) => state.ui.theme);
+  const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // Re-register FCM token whenever the user is authenticated (covers page refresh)
+  useEffect(() => {
+    if (isAuthenticated) {
+      initNotifications().catch(() => {});
+    }
+  }, [isAuthenticated]);
 
   return (
     <div className="app">

@@ -34,7 +34,10 @@ function VerdictBadge({ label }) {
 
 const HistoryPage = () => {
   const dispatch = useDispatch();
-  const { history, pagination, loading, error } = useSelector((s) => s.analysis);
+  const history = useSelector((s) => s.analysis.history);
+  const pagination = useSelector((s) => s.analysis.pagination);
+  const loading = useSelector((s) => s.analysis.loading);
+  const error = useSelector((s) => s.analysis.error);
   const [filter, setFilter] = useState('');
   const [page, setPage]     = useState(1);
 
