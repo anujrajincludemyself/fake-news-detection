@@ -19,6 +19,10 @@ npm install
 # ML service
 cd ../ml-service
 pip install -r requirements.txt
+
+# Video processing service
+cd ../video-processing
+pip install -r requirements.txt
 ```
 
 ## 2. Configure environment variables
@@ -37,6 +41,9 @@ GEMINI_API_KEY=
 GROQ_API_KEY=
 MISTRAL_API_KEY=
 HUGGINGFACE_API_KEY=
+
+# Video processing service URL (default: http://localhost:8001)
+VIDEO_SERVICE_URL=http://localhost:8001
 ```
 
 For the **client**, open `client/.env` and switch the API URL to local:
@@ -59,7 +66,12 @@ npm run dev
 cd ml-service
 python app.py
 
-# Terminal 3 — frontend
+# Terminal 3 — Video processing service (needed for /video-analyze)
+cd video-processing
+cp .env.example .env          # then fill in GROQ_API_KEY
+python app.py
+
+# Terminal 4 — frontend
 cd client
 npm start
 ```
