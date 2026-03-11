@@ -14,6 +14,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import AboutPage from './pages/AboutPage';
 import WallOfFakePage from './pages/WallOfFakePage';
+import NetworkGraphPage from './pages/NetworkGraphPage';
 
 function ProtectedRoute({ children }) {
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
@@ -50,6 +51,7 @@ function App() {
           <Route path="/analyze" element={<ProtectedRoute><AnalyzePage /></ProtectedRoute>} />
           <Route path="/media-analyze" element={<ProtectedRoute><MediaAnalyzePage /></ProtectedRoute>} />
           <Route path="/wall-of-fake" element={<WallOfFakePage />} />
+          <Route path="/network" element={<NetworkGraphPage />} />
           <Route path="/about" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
           <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />

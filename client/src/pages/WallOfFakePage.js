@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useCallback, memo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiAlertCircle, FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
@@ -17,16 +17,16 @@ function timeAgo(ts) {
 }
 
 function getFakeIndex(site) {
-  if (!site.realCount) {
-    return site.fakeCount > 0 ? 999 : 0;
-  }
-  return Math.round((site.fakeCount / site.realCount) * 100);
+  if (site.fakeScore != null) return Math.round(site.fakeScore);
+  const { fakeCount = 0, totalScans = 0 } = site;
+  if (totalScans === 0) return 0;
+  return Math.round((fakeCount / totalScans) * 100);
 }
 
 function getFakeIndexColor(fi) {
-  if (fi >= 200) return '#f87171';
-  if (fi >= 80) return '#fb923c';
-  if (fi >= 40) return '#fbbf24';
+  if (fi >= 75) return '#f87171';
+  if (fi >= 50) return '#fb923c';
+  if (fi >= 25) return '#fbbf24';
   return '#4ade80';
 }
 
@@ -40,14 +40,36 @@ function getAvatarColor(domain) {
   return colors[Math.abs(hash) % colors.length];
 }
 
+const SiteLogo = memo(function SiteLogo({ domain, size = 32 }) {
+  const [failed, setFailed] = useState(false);
+  const avatarColor = getAvatarColor(domain);
+  const handleError = useCallback(() => setFailed(true), []);
+  if (failed) {
+    return (
+      <div className="wof-logo-fallback" style={{ background: avatarColor, width: size, height: size }}>
+        {domain.charAt(0).toUpperCase()}
+      </div>
+    );
+  }
+  return (
+    <img
+      src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=${size}`}
+      alt={domain}
+      width={size}
+      height={size}
+      className="wof-site-logo"
+      onError={handleError}
+    />
+  );
+});
+
 /* ─── Podium Card (top 3) ──────────────────────────────────── */
 const rankLabels = { 1: '1st', 2: '2nd', 3: '3rd' };
 const podiumHeights = { 1: 140, 2: 110, 3: 90 };
 
-function PodiumCard({ site, rank }) {
+const PodiumCard = memo(function PodiumCard({ site, rank }) {
   const fi = getFakeIndex(site);
   const fiColor = getFakeIndexColor(fi);
-  const avatarColor = getAvatarColor(site.domain);
 
   return (
     <motion.div
@@ -59,18 +81,15 @@ function PodiumCard({ site, rank }) {
       {/* Card above the pedestal */}
       <div className="wof-pedestal-card">
         <span className={`wof-rank-badge wof-rank-badge-${rank}`}>{rankLabels[rank]}</span>
-        <div
-          className="wof-podium-avatar"
-          style={{ background: avatarColor }}
-        >
-          {site.domain.charAt(0).toUpperCase()}
+        <div className="wof-podium-avatar">
+          <SiteLogo domain={site.domain} size={48} />
         </div>
         <div className="wof-podium-domain">{site.domain}</div>
         <div className="wof-podium-time">{timeAgo(site.lastScannedAt)}</div>
 
         <div className="wof-fake-index-badge" style={{ color: fiColor, borderColor: fiColor }}>
           <span className="wof-fi-label">Fake Index</span>
-          <span className="wof-fi-value">{fi === 999 ? '∞' : fi}</span>
+          <span className="wof-fi-value">{fi}%</span>
         </div>
 
         <div className="wof-podium-pills">
@@ -89,13 +108,12 @@ function PodiumCard({ site, rank }) {
       </div>
     </motion.div>
   );
-}
+});
 
 /* ─── Leaderboard Row (rank 4+) ────────────────────────────── */
-function LeaderRow({ site, rank }) {
+const LeaderRow = memo(function LeaderRow({ site, rank }) {
   const fi = getFakeIndex(site);
   const fiColor = getFakeIndexColor(fi);
-  const avatarColor = getAvatarColor(site.domain);
 
   return (
     <motion.div
@@ -105,8 +123,8 @@ function LeaderRow({ site, rank }) {
       transition={{ delay: (rank - 3) * 0.05, duration: 0.3 }}
     >
       <span className="wof-row-rank">{rank}</span>
-      <div className="wof-row-avatar" style={{ background: avatarColor }}>
-        {site.domain.charAt(0).toUpperCase()}
+      <div className="wof-row-avatar">
+        <SiteLogo domain={site.domain} size={32} />
       </div>
       <div className="wof-row-info">
         <span className="wof-row-domain">{site.domain}</span>
@@ -118,12 +136,12 @@ function LeaderRow({ site, rank }) {
         <span className="wof-row-time">{timeAgo(site.lastScannedAt)}</span>
         <span className="wof-row-fi" style={{ color: fiColor }}>
           <span className="wof-row-fi-label">Fake Index: </span>
-          {fi === 999 ? '∞' : fi}
+          {fi}%
         </span>
       </div>
     </motion.div>
   );
-}
+});
 
 /* ─── Main Page ─────────────────────────────────────────────── */
 const WallOfFakePage = () => {
@@ -134,17 +152,19 @@ const WallOfFakePage = () => {
 
   useEffect(() => { dispatch(fetchWall()); }, [dispatch]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     dispatch(resetFetched());
     dispatch(fetchWall());
-  };
+  }, [dispatch]);
 
-  // Sort by Fake Index descending
-  const sorted = [...sites].sort((a, b) => getFakeIndex(b) - getFakeIndex(a));
-  const top3 = sorted.slice(0, 3);
-  const rest = sorted.slice(3);
-
-  const totalScans = sites.reduce((sum, s) => sum + s.totalScans, 0);
+  // Derived data — recompute only when sites array reference changes
+  const sorted = useMemo(
+    () => [...sites].sort((a, b) => getFakeIndex(b) - getFakeIndex(a)),
+    [sites]
+  );
+  const top3 = useMemo(() => sorted.slice(0, 3), [sorted]);
+  const rest = useMemo(() => sorted.slice(3), [sorted]);
+  const totalScans = useMemo(() => sites.reduce((sum, s) => sum + s.totalScans, 0), [sites]);
 
   return (
     <div className="wof-page">
@@ -162,7 +182,7 @@ const WallOfFakePage = () => {
                 <span className="wof-chip">{sites.length} sites tracked</span>
                 <span className="wof-chip">{totalScans} articles scanned</span>
                 <span className="wof-chip wof-chip-info">
-                  Fake Index = real ÷ fake × 100
+                  Fake Index = fake ÷ total × 100
                 </span>
               </div>
             )}

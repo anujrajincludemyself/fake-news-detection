@@ -16,6 +16,7 @@ const getInitials = (name) => {
 const navLinks = [
   { to: '/', label: 'Home' },
   { to: '/wall-of-fake', label: 'Wall of Fake' },
+  { to: '/network', label: 'Threat Network' },
   { to: '/about', label: 'About' },
 ];
 
