@@ -16,6 +16,7 @@ const mediaRoutes = require('./routes/media');
 const extensionRoutes = require('./routes/extension');
 const wallRoutes = require('./routes/wall');
 const notificationRoutes = require('./routes/notifications');
+const videoRoutes = require('./video/videoRoutes');
 
 // Connect to database
 connectDB();
@@ -98,6 +99,7 @@ app.use('/api/analysis', analysisRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/extension', extensionRoutes);
 app.use('/api/wall', wallRoutes);
+app.use('/api/video', videoRoutes);
 app.use('/api/notifications', notificationRoutes);
 
 // Error handler
