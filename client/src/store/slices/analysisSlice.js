@@ -38,14 +38,15 @@ export const analyzeImage = createAsyncThunk(
 
 export const analyzeVideo = createAsyncThunk(
   'analysis/analyzeVideo',
-  async ({ file, title }, { rejectWithValue }) => {
+  async ({ file, title, context }, { rejectWithValue }) => {
     try {
       const formData = new FormData();
       formData.append('file', file);
       if (title) formData.append('title', title);
-      const { data } = await api.post('/media/video', formData, {
+      if (context) formData.append('context', context);
+      const { data } = await api.post('/video/analyze', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 120000,
+        timeout: 180000, // 3 min — whisper + Groq
       });
       return data.data;
     } catch (error) {
