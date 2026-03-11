@@ -4,18 +4,29 @@ const logger = require('../utils/logger');
 
 // Initialize Firebase Admin SDK once
 if (!admin.apps.length) {
-  const serviceAccountPath =
-    process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
-    path.join(__dirname, '../../firebase-service-account.json');
-
   try {
-    const serviceAccount = require(serviceAccountPath);
+    let serviceAccount;
+
+    // First, try to load from environment variable (FIREBASE_SERVICE_ACCOUNT_JSON)
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+      logger.info('Loaded Firebase credentials from environment variable');
+    } else {
+      // Fallback: try to load from file for local development
+      const serviceAccountPath =
+        process.env.FIREBASE_SERVICE_ACCOUNT_PATH ||
+        path.join(__dirname, '../../firebase-service-account.json');
+      serviceAccount = require(serviceAccountPath);
+      logger.info('Loaded Firebase credentials from file');
+    }
+
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
     logger.info('Firebase Admin SDK initialized');
   } catch (err) {
     logger.error('Failed to initialize Firebase Admin SDK:', err.message);
+    logger.warn('Push notifications will be disabled. Set FIREBASE_SERVICE_ACCOUNT_JSON environment variable or provide firebase-service-account.json file.');
   }
 }
 
