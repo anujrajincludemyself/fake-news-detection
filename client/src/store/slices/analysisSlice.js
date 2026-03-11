@@ -178,8 +178,32 @@ const analysisSlice = createSlice({
       })
       .addCase(analyzeVideo.fulfilled, (state, action) => {
         state.analyzing = false;
-        state.currentAnalysis = action.payload;
         state.statsLastFetched = null;
+        // The video server returns a flat structure with top-level `verdict`,
+        // `transcript`, `videoSummary`, etc. Normalize it into the same
+        // `prediction` shape that the image/text analyses use so the result
+        // panel renders correctly.
+        const raw = action.payload;
+        state.currentAnalysis = {
+          ...raw,
+          analysisType: 'video',
+          prediction: {
+            label: raw.verdict?.label || 'UNCERTAIN',
+            confidence: raw.verdict?.confidence ?? 50,
+            details: {
+              analysisType: 'video',
+              videoSummary: raw.videoSummary || '',
+              transcript: raw.transcript || '',
+              language: raw.language || 'unknown',
+              duration: raw.duration || 0,
+              frameCount: raw.frameCount || 0,
+              reasoning: raw.verdict?.reasoning || '',
+              models: raw.verdict?.models || {},
+              userContext: raw.userContext || '',
+              serviceErrors: raw.errors || [],
+            },
+          },
+        };
       })
       .addCase(analyzeVideo.rejected, (state, action) => {
         state.analyzing = false;
