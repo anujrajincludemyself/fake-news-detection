@@ -82,7 +82,9 @@ def describe_video_content(
                 "Below are representative frames from the video. "
                 "Describe what the video is about in 3-5 factual sentences — "
                 "covering who appears, what is happening, what is being said, and the setting. "
-                "Do NOT judge whether it is real or fake yet."
+                "IMPORTANT: If anyone in the video explicitly states they are AI-generated, "
+                "not real, fictional, or a simulation — quote that statement directly in your description. "
+                "Also note any on-screen text, watermarks, or logos claiming the content is AI-generated or synthetic."
             ),
         }
     ]
@@ -113,15 +115,21 @@ def describe_video_content(
 
 
 # ── Stage 2: Fact-check the summary vs the user's context/claim ───────────────
-def fact_check(video_summary: str, user_context: str) -> dict:
+def fact_check(video_summary: str, user_context: str, transcript: str = "") -> dict:
     """
-    Text-only call: given the rich video description, produce a verdict.
+    Text-only call: given the rich video description + raw transcript, produce a verdict.
     Returns {label, confidence, reasoning}.
     """
     context_line = (
         f'The video is being shared with this claim: "{user_context}"'
         if user_context
-        else "No specific claim was provided. Assess whether the video content appears authentic and internally consistent."
+        else "No specific claim was provided. Assess whether the video content appears authentic."
+    )
+
+    transcript_block = (
+        f'Raw audio transcript:\n"""\n{transcript[:2000]}\n"""'
+        if transcript
+        else "No transcript available."
     )
 
     payload = {
@@ -132,18 +140,29 @@ def fact_check(video_summary: str, user_context: str) -> dict:
             {
                 "role": "system",
                 "content": (
-                    "You are a video fact-checking AI.\n"
-                    "Rules:\n"
-                    "- REAL: video content is consistent with the claim and nothing visible or audible contradicts it\n"
-                    "- FAKE: video content directly contradicts a key fact in the claim\n"
-                    "- UNCERTAIN: too vague or unrelated to make a firm determination\n"
+                    "You are a video fact-checking AI. You receive a video content description, "
+                    "the raw audio transcript, and an optional claim the video is alleged to support.\n\n"
+                    "Rules (apply in this strict order):\n"
+                    "1. FAKE (highest priority): If the transcript or description contains ANY explicit "
+                    "admission that the speakers/subjects are AI-generated, not real, fictional, simulated, "
+                    "or computer-generated — classify as FAKE immediately with high confidence.\n"
+                    "2. FAKE: If the video content directly contradicts a key fact in the claim.\n"
+                    "3. REAL: Video content is consistent with the claim and nothing audible or visible contradicts it.\n"
+                    "4. UNCERTAIN: Too vague or unrelated to make a firm determination.\n\n"
+                    "Self-admission keywords that trigger rule 1: \\'not real\\', \\'I am AI\\', \\'we are AI\\', "
+                    "\\'AI generated\\', \\'I\'m not real\\', \\'we\'re not real\\', \\'synthetic\\', \\'simulated\\', "
+                    "\\'deepfake\\', \\'this is fake\\', \\'artificially generated\\'.\n\n"
                     "Respond ONLY with raw JSON, no markdown:\n"
                     '{"label":"REAL"|"FAKE"|"UNCERTAIN","confidence":<0-100>,"reasoning":"<one sentence>"}'
                 ),
             },
             {
                 "role": "user",
-                "content": f"Video content description:\n\"{video_summary}\"\n\n{context_line}",
+                "content": (
+                    f"Video content description:\n\"{video_summary}\"\n\n"
+                    f"{transcript_block}\n\n"
+                    f"{context_line}"
+                ),
             },
         ],
     }

@@ -161,7 +161,7 @@ async def process_video(
         logger.info("Step 4/4: Groq text — fact-checking…")
         verdict = {"label": "UNCERTAIN", "confidence": 50, "reasoning": "Fact-check step failed.", "models": {}}
         try:
-            verdict = fact_check(video_summary, context)
+            verdict = fact_check(video_summary, context, transcript)
         except Exception as e:
             errors.append(f"Fact-check failed: {e}")
             logger.error(f"Groq fact-check failed: {e}")
