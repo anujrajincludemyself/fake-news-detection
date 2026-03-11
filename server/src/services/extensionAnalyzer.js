@@ -140,10 +140,36 @@ ${text.slice(0, 4000)}`;
     let parsed;
     try {
       parsed = JSON.parse(cleaned);
-    } catch {
-      const match = cleaned.match(/\{[\s\S]*\}/);
-      if (!match) throw new Error('Could not parse Groq response as JSON');
-      parsed = JSON.parse(match[0]);
+    } catch (error) {
+      // Try to extract JSON object more carefully
+      let match = null;
+      let braceCount = 0;
+      let startIdx = -1;
+      
+      for (let i = 0; i < cleaned.length; i++) {
+        if (cleaned[i] === '{') {
+          if (braceCount === 0) startIdx = i;
+          braceCount++;
+        } else if (cleaned[i] === '}') {
+          braceCount--;
+          if (braceCount === 0 && startIdx !== -1) {
+            match = cleaned.substring(startIdx, i + 1);
+            break;
+          }
+        }
+      }
+      
+      if (!match) {
+        logger.error('Could not extract JSON from Groq response', { raw: raw.substring(0, 200) });
+        throw new Error('Could not parse Groq response as JSON');
+      }
+      
+      try {
+        parsed = JSON.parse(match);
+      } catch (parseError) {
+        logger.error('Invalid JSON extracted from Groq', { match: match.substring(0, 200) });
+        throw parseError;
+      }
     }
 
     const validVerdicts = ['REAL', 'FAKE', 'UNCERTAIN', 'SATIRE'];

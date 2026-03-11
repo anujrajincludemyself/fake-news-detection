@@ -57,7 +57,8 @@ exports.analyzeImage = async (req, res, next) => {
     // ── Stage 3: If image matches the claim, fact-check the claim itself ──────
     // A real image that genuinely matches a claim can still be misinformation
     // if the claim is factually false. We only run this when Stage 2 says REAL.
-    if (imageMatchResult && imageMatchResult.label === 'REAL' && userClaim && process.env.GROQ_API_KEY) {
+    // Skip this stage if DISABLE_CLAIM_FACTCHECK env var is set (for faster analysis)
+    if (imageMatchResult && imageMatchResult.label === 'REAL' && userClaim && process.env.GROQ_API_KEY && process.env.DISABLE_CLAIM_FACTCHECK !== 'true') {
       try {
         const claimFactResult = await GroqService.factCheckImageClaim(imageDescription, userClaim);
         logger.info(`Claim fact-check: ${claimFactResult.label} (${claimFactResult.confidence}%)`);
