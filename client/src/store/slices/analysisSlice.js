@@ -17,11 +17,12 @@ export const analyzeNews = createAsyncThunk(
 
 export const analyzeImage = createAsyncThunk(
   'analysis/analyzeImage',
-  async ({ file, title }, { rejectWithValue }) => {
+  async ({ file, title, claim }, { rejectWithValue }) => {
     try {
       const formData = new FormData();
       formData.append('file', file);
       if (title) formData.append('title', title);
+      if (claim) formData.append('claim', claim);
       const { data } = await api.post('/media/image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 60000,
@@ -37,14 +38,15 @@ export const analyzeImage = createAsyncThunk(
 
 export const analyzeVideo = createAsyncThunk(
   'analysis/analyzeVideo',
-  async ({ file, title }, { rejectWithValue }) => {
+  async ({ file, title, context }, { rejectWithValue }) => {
     try {
       const formData = new FormData();
       formData.append('file', file);
       if (title) formData.append('title', title);
-      const { data } = await api.post('/media/video', formData, {
+      if (context) formData.append('context', context);
+      const { data } = await api.post('/video/analyze', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 120000,
+        timeout: 180000, // 3 min — whisper + Groq
       });
       return data.data;
     } catch (error) {
@@ -54,6 +56,8 @@ export const analyzeVideo = createAsyncThunk(
     }
   }
 );
+
+const STATS_TTL_MS = 60 * 1000;
 
 export const fetchHistory = createAsyncThunk(
   'analysis/fetchHistory',
@@ -66,6 +70,10 @@ export const fetchHistory = createAsyncThunk(
         error.response?.data?.message || 'Failed to fetch history'
       );
     }
+  },
+  {
+    // Block duplicate in-flight calls (handles React StrictMode double-fire)
+    condition: (_, { getState }) => !getState().analysis.loading,
   }
 );
 
@@ -80,6 +88,15 @@ export const fetchStats = createAsyncThunk(
         error.response?.data?.message || 'Failed to fetch stats'
       );
     }
+  },
+  {
+    // condition runs BEFORE pending is dispatched — safe to check loading
+    condition: (_, { getState }) => {
+      const { statsLoading, statsLastFetched } = getState().analysis;
+      if (statsLoading) return false;
+      if (statsLastFetched && Date.now() - statsLastFetched < STATS_TTL_MS) return false;
+      return true;
+    },
   }
 );
 
@@ -102,7 +119,9 @@ const initialState = {
   history: [],
   stats: null,
   pagination: null,
-  loading: false,
+  loading: false,       // history fetch in-flight
+  statsLoading: false,  // stats fetch in-flight
+  statsLastFetched: null,
   analyzing: false,
   error: null,
 };
@@ -130,6 +149,7 @@ const analysisSlice = createSlice({
       .addCase(analyzeNews.fulfilled, (state, action) => {
         state.analyzing = false;
         state.currentAnalysis = action.payload;
+        state.statsLastFetched = null; // invalidate so dashboard re-fetches on next visit
       })
       .addCase(analyzeNews.rejected, (state, action) => {
         state.analyzing = false;
@@ -144,6 +164,7 @@ const analysisSlice = createSlice({
       .addCase(analyzeImage.fulfilled, (state, action) => {
         state.analyzing = false;
         state.currentAnalysis = action.payload;
+        state.statsLastFetched = null;
       })
       .addCase(analyzeImage.rejected, (state, action) => {
         state.analyzing = false;
@@ -157,7 +178,32 @@ const analysisSlice = createSlice({
       })
       .addCase(analyzeVideo.fulfilled, (state, action) => {
         state.analyzing = false;
-        state.currentAnalysis = action.payload;
+        state.statsLastFetched = null;
+        // The video server returns a flat structure with top-level `verdict`,
+        // `transcript`, `videoSummary`, etc. Normalize it into the same
+        // `prediction` shape that the image/text analyses use so the result
+        // panel renders correctly.
+        const raw = action.payload;
+        state.currentAnalysis = {
+          ...raw,
+          analysisType: 'video',
+          prediction: {
+            label: raw.verdict?.label || 'UNCERTAIN',
+            confidence: raw.verdict?.confidence ?? 50,
+            details: {
+              analysisType: 'video',
+              videoSummary: raw.videoSummary || '',
+              transcript: raw.transcript || '',
+              language: raw.language || 'unknown',
+              duration: raw.duration || 0,
+              frameCount: raw.frameCount || 0,
+              reasoning: raw.verdict?.reasoning || '',
+              models: raw.verdict?.models || {},
+              userContext: raw.userContext || '',
+              serviceErrors: raw.errors || [],
+            },
+          },
+        };
       })
       .addCase(analyzeVideo.rejected, (state, action) => {
         state.analyzing = false;
@@ -177,8 +223,16 @@ const analysisSlice = createSlice({
         state.error = action.payload;
       })
       // Stats
+      .addCase(fetchStats.pending, (state) => {
+        state.statsLoading = true;
+      })
       .addCase(fetchStats.fulfilled, (state, action) => {
+        state.statsLoading = false;
         state.stats = action.payload;
+        state.statsLastFetched = Date.now();
+      })
+      .addCase(fetchStats.rejected, (state) => {
+        state.statsLoading = false;
       })
       // Feedback
       .addCase(submitFeedback.fulfilled, (state, action) => {

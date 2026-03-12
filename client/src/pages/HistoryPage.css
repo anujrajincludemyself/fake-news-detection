@@ -4,16 +4,23 @@
 
 .history-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   margin-bottom: 2rem;
   flex-wrap: wrap;
   gap: 1rem;
 }
 
-.history-header h1 {
+.history-title {
   font-size: 2rem;
   font-weight: 800;
+  margin: 0 0 0.25rem;
+}
+
+.history-subtitle {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin: 0;
 }
 
 .history-filters {
@@ -60,50 +67,126 @@
   box-shadow: var(--shadow-md);
 }
 
-.history-card-left {
+/* ─── Loading / error ─────────────────────────── */
+.history-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+  padding: 3rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.hist-spinner {
+  width: 28px; height: 28px;
+  border: 3px solid rgba(255,255,255,0.08);
+  border-top-color: #a855f7;
+  border-radius: 50%;
+  animation: hist-spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes hist-spin { to { transform: rotate(360deg); } }
+
+.history-error {
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.25);
+  color: #fca5a5;
+  border-radius: 10px;
+  padding: 0.9rem 1.2rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.88rem;
+}
+
+/* ─── Card internals ──────────────────────────── */
+.hist-card-left {
   flex: 1;
   min-width: 0;
 }
 
-.history-card-title {
-  font-size: 0.95rem;
+.hist-title {
+  font-size: 0.93rem;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 500px;
-  margin-bottom: 0.2rem;
+  max-width: 560px;
+  margin-bottom: 0.3rem;
+  color: var(--text-primary);
 }
 
-.history-card-meta {
+.hist-meta {
   display: flex;
-  gap: 1rem;
-  font-size: 0.8rem;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 0.78rem;
   color: var(--text-muted);
 }
 
-.history-card-right {
+.hist-source-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.tag-ext { background: rgba(168,85,247,0.12); color: #c084fc; }
+.tag-web { background: rgba(59,130,246,0.12); color: #60a5fa; }
+
+.hist-url-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.hist-url-link:hover { color: #60a5fa; }
+
+.hist-card-right {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 10px;
   flex-shrink: 0;
 }
 
-.history-confidence {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-secondary);
+.hist-verdict-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 3px 10px;
 }
 
+.hist-conf {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  min-width: 38px;
+  text-align: right;
+}
+
+/* ─── Empty ───────────────────────────────────── */
 .history-empty {
   text-align: center;
   padding: 4rem 2rem;
   color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .history-empty h3 {
-  margin-bottom: 0.5rem;
+  margin: 0.5rem 0 0;
   color: var(--text-secondary);
+  font-size: 1.1rem;
+}
+.history-empty p {
+  margin: 0;
+  max-width: 380px;
+  font-size: 0.88rem;
 }
 
 .pagination {

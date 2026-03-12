@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
@@ -15,16 +15,51 @@ import {
   FiXCircle,
   FiAlertTriangle,
   FiArrowRight,
+  FiGlobe,
+  FiMonitor,
 } from 'react-icons/fi';
 import { fetchStats } from '../store/slices/analysisSlice';
 import './DashboardPage.css';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
+// Static config — defined outside component to avoid recreation on every render
+const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      position: 'bottom',
+      labels: {
+        color: '#94a3b8',
+        padding: 16,
+        font: { size: 12, weight: 600 },
+      },
+    },
+  },
+  cutout: '65%',
+};
+
+const formatDate = (date) =>
+  new Date(date).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+
+const VERDICT_COLOR = {
+  REAL:        '#4ade80',
+  FAKE:        '#f87171',
+  UNCERTAIN:   '#fbbf24',
+  AUTHENTIC:   '#4ade80',
+  MANIPULATED: '#f87171',
+};
+
 const DashboardPage = () => {
   const dispatch = useDispatch();
-  const { stats } = useSelector((state) => state.analysis);
-  const { user } = useSelector((state) => state.auth);
+  const stats = useSelector((state) => state.analysis.stats);
+  const statsLoading = useSelector((state) => state.analysis.statsLoading);
+  const user = useSelector((state) => state.auth.user);
 
   useEffect(() => {
     dispatch(fetchStats());
@@ -57,60 +92,37 @@ const DashboardPage = () => {
       }
     : null;
 
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: {
-          color: '#94a3b8',
-          padding: 16,
-          font: { size: 12, weight: 600 },
-        },
-      },
-    },
-    cutout: '65%',
-  };
-
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const statCards = [
+  const statCards = useMemo(() => [
     {
-      label: 'Total Analyses',
-      value: stats?.totalAnalyses || 0,
+      label: 'TOTAL ANALYSES',
+      value: statsLoading && !stats ? '…' : (stats?.totalAnalyses ?? 0),
       icon: <FiBarChart2 />,
       color: 'blue',
       sub: 'All time',
     },
     {
-      label: 'Real News',
-      value: stats?.labels?.REAL?.count || 0,
+      label: 'REAL NEWS',
+      value: statsLoading && !stats ? '…' : (stats?.labels?.REAL?.count ?? 0),
       icon: <FiCheckCircle />,
       color: 'green',
-      sub: `Avg ${stats?.labels?.REAL?.avgConfidence || 0}% confidence`,
+      sub: `Avg ${stats?.labels?.REAL?.avgConfidence ?? 0}% confidence`,
     },
     {
-      label: 'Fake News',
-      value: stats?.labels?.FAKE?.count || 0,
+      label: 'FAKE NEWS',
+      value: statsLoading && !stats ? '…' : (stats?.labels?.FAKE?.count ?? 0),
       icon: <FiXCircle />,
       color: 'red',
-      sub: `Avg ${stats?.labels?.FAKE?.avgConfidence || 0}% confidence`,
+      sub: `Avg ${stats?.labels?.FAKE?.avgConfidence ?? 0}% confidence`,
     },
     {
-      label: 'Uncertain',
-      value: stats?.labels?.UNCERTAIN?.count || 0,
+      label: 'UNCERTAIN',
+      value: statsLoading && !stats ? '…' : (stats?.labels?.UNCERTAIN?.count ?? 0),
       icon: <FiAlertTriangle />,
       color: 'yellow',
-      sub: `Avg ${stats?.labels?.UNCERTAIN?.avgConfidence || 0}% confidence`,
+      sub: `Avg ${stats?.labels?.UNCERTAIN?.avgConfidence ?? 0}% confidence`,
     },
-  ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [stats, statsLoading]);
 
   return (
     <div className="dashboard-page">
@@ -156,40 +168,35 @@ const DashboardPage = () => {
             </div>
 
             {stats?.recentAnalyses?.length > 0 ? (
-              stats.recentAnalyses.map((item) => (
-                <div key={item._id} className="recent-item">
-                  <div>
-                    <div className="recent-item-title">{item.title}</div>
-                    <div className="recent-item-date">
-                      {formatDate(item.createdAt)}
+              stats.recentAnalyses.map((item) => {
+                const isExtension = !item.user;
+                const vColor = VERDICT_COLOR[item.prediction.label] || '#94a3b8';
+                return (
+                  <div key={item._id} className="recent-item">
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="recent-item-title">{item.title}</div>
+                      <div className="recent-item-date" style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                        <span className={`hist-source-tag ${isExtension ? 'tag-ext' : 'tag-web'}`}
+                          style={{ fontSize:'0.68rem', padding:'1px 7px' }}>
+                          {isExtension ? <><FiGlobe size={9}/> Extension</> : <><FiMonitor size={9}/> Web App</>}
+                        </span>
+                        <span>{formatDate(item.createdAt)}</span>
+                      </div>
+                    </div>
+                    <div className="recent-item-right">
+                      <span className={`badge badge-${item.prediction.label.toLowerCase()}`}>
+                        {item.prediction.label}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', color: vColor, fontWeight:700 }}>
+                        {item.prediction.confidence}%
+                      </span>
                     </div>
                   </div>
-                  <div className="recent-item-right">
-                    <span
-                      className={`badge badge-${item.prediction.label.toLowerCase()}`}
-                    >
-                      {item.prediction.label}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '0.8rem',
-                        color: 'var(--text-muted)',
-                      }}
-                    >
-                      {item.prediction.confidence}%
-                    </span>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
-              <div
-                style={{
-                  textAlign: 'center',
-                  padding: '2rem',
-                  color: 'var(--text-muted)',
-                }}
-              >
-                No analyses yet. Start by analyzing a news article!
+              <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                {statsLoading ? 'Loading…' : 'No analyses yet. Start by analyzing a news article!'}
               </div>
             )}
           </div>

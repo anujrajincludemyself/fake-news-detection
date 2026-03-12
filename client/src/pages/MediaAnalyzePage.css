@@ -134,6 +134,43 @@
   font-size: 0.75rem;
 }
 
+/* AI Analysis Summary */
+.ai-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.ai-summary-item:last-child {
+  border-bottom: none;
+}
+
+.ai-summary-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ai-summary-text {
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.ai-summary-source {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  color: var(--accent-blue);
+}
+
+.ai-summary-verdict.real  { color: var(--success, #22c55e); font-weight: 500; }
+.ai-summary-verdict.fake  { color: var(--danger,  #ef4444); font-weight: 500; }
+.ai-summary-verdict.uncertain { color: var(--warning, #f59e0b); font-weight: 500; }
+
 /* Info note */
 .media-info-note {
   display: flex;

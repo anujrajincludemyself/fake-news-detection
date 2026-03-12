@@ -2,7 +2,7 @@
 
 A full-stack web application that detects fake news using machine learning and natural language processing. Supports **text, image, and video** analysis. Built with React, Node.js, MongoDB, and a Python ML microservice.
 
----
+
 
 ## Architecture
 

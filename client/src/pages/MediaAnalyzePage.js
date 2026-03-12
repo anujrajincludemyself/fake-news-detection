@@ -17,14 +17,15 @@ import './MediaAnalyzePage.css';
 
 const MediaAnalyzePage = () => {
   const dispatch = useDispatch();
-  const { currentAnalysis, analyzing, error } = useSelector(
-    (state) => state.analysis
-  );
+  const currentAnalysis = useSelector((state) => state.analysis.currentAnalysis);
+  const analyzing = useSelector((state) => state.analysis.analyzing);
+  const error = useSelector((state) => state.analysis.error);
 
   const [mode, setMode] = useState('image'); // 'image' or 'video'
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [title, setTitle] = useState('');
+  const [claim, setClaim] = useState('');
   const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
@@ -37,8 +38,8 @@ const MediaAnalyzePage = () => {
         toast.error('Please select a valid image file.');
         return;
       }
-      if (selected.size > 20 * 1024 * 1024) {
-        toast.error('Image must be under 20 MB.');
+      if (selected.size > 2.5 * 1024 * 1024) {
+        toast.error('Image must be under 2.5 MB.');
         return;
       }
     } else {
@@ -87,8 +88,8 @@ const MediaAnalyzePage = () => {
     }
 
     const action = mode === 'image'
-      ? analyzeImage({ file, title })
-      : analyzeVideo({ file, title });
+      ? analyzeImage({ file, title, claim })
+      : analyzeVideo({ file, title, context: claim });
 
     const result = await dispatch(action);
     if (result.meta.requestStatus === 'fulfilled') {
@@ -102,6 +103,7 @@ const MediaAnalyzePage = () => {
     setFile(null);
     setPreview(null);
     setTitle('');
+    setClaim('');
     if (fileInputRef.current) fileInputRef.current.value = '';
     dispatch(clearCurrentAnalysis());
   };
@@ -202,6 +204,32 @@ const MediaAnalyzePage = () => {
                 />
               </div>
 
+              {mode === 'image' && (
+                <div className="form-group">
+                  <label className="form-label">What is this image claiming? (optional but improves accuracy)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. This photo shows the 2024 flood in Valencia..."
+                    value={claim}
+                    onChange={(e) => setClaim(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {mode === 'video' && (
+                <div className="form-group">
+                  <label className="form-label">What is this video claimed to show? (improves accuracy)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    placeholder="e.g. This video shows the 2024 earthquake aftermath in Turkey..."
+                    value={claim}
+                    onChange={(e) => setClaim(e.target.value)}
+                  />
+                </div>
+              )}
+
               <div
                 className={`upload-zone ${file ? 'has-file' : ''}`}
                 onClick={() => !file && fileInputRef.current?.click()}
@@ -218,7 +246,7 @@ const MediaAnalyzePage = () => {
                     </p>
                     <p className="upload-hint">
                       {mode === 'image'
-                        ? 'JPEG, PNG, WebP, BMP — max 20 MB'
+                        ? 'JPEG, PNG, WebP, BMP — max 2.5 MB'
                         : 'MP4, AVI, WebM, MOV, MKV — max 100 MB'}
                     </p>
                   </div>
@@ -289,7 +317,7 @@ const MediaAnalyzePage = () => {
                   <div className="analyzing-sub">
                     {mode === 'image'
                       ? 'Running ELA, metadata, and pixel analysis'
-                      : 'Extracting frames and running forensic analysis'}
+                      : 'Transcribing audio locally, then running Groq fact-check…'}
                   </div>
                 </motion.div>
               ) : pred ? (
@@ -428,107 +456,111 @@ const MediaAnalyzePage = () => {
                     )}
 
                     {/* VIDEO RESULTS */}
-                    {currentAnalysis?.analysisType === 'video' && mediaDetails && (
+                    {currentAnalysis?.analysisType === 'video' && (
                       <>
-                        {/* Video Info */}
-                        <div className="detail-section">
-                          <div className="detail-section-title">
-                            Video Information
-                          </div>
-                          <div className="detail-grid">
-                            <div className="detail-item">
-                              <span className="detail-item-label">Duration</span>
-                              <span className="detail-item-value neutral">
-                                {mediaDetails.video_info?.duration_seconds}s
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">FPS</span>
-                              <span className="detail-item-value neutral">
-                                {mediaDetails.video_info?.fps}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Resolution</span>
-                              <span className="detail-item-value neutral">
-                                {mediaDetails.video_info?.resolution?.width}×{mediaDetails.video_info?.resolution?.height}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Frames Analyzed</span>
-                              <span className="detail-item-value neutral">
-                                {mediaDetails.frames_analyzed}
-                              </span>
+                        {/* Video Summary */}
+                        {pred?.details?.videoSummary && (
+                          <div className="detail-section">
+                            <div className="detail-section-title">What the video shows</div>
+                            <div className="ai-summary-item">
+                              <span className="ai-summary-text">{pred.details.videoSummary}</span>
                             </div>
                           </div>
-                        </div>
+                        )}
 
-                        {/* Frame Consistency */}
-                        <div className="detail-section">
-                          <div className="detail-section-title">
-                            Frame Consistency
-                          </div>
-                          <div className="detail-grid">
-                            <div className="detail-item">
-                              <span className="detail-item-label">Consistency</span>
-                              <span className={`indicator-tag ${mediaDetails.frame_consistency?.consistent ? 'clear' : 'detected'}`}>
-                                {mediaDetails.frame_consistency?.consistent ? 'Consistent' : 'Anomalies Found'}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Anomalies</span>
-                              <span className={`detail-item-value ${mediaDetails.frame_consistency?.anomaly_count > 0 ? 'negative' : 'positive'}`}>
-                                {mediaDetails.frame_consistency?.anomaly_count}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Mean Frame Diff</span>
-                              <span className="detail-item-value neutral">
-                                {mediaDetails.frame_consistency?.mean_frame_diff}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Avg ELA Score</span>
-                              <span className={`detail-item-value ${mediaDetails.avg_ela_score > 0.03 ? 'negative' : 'positive'}`}>
-                                {((mediaDetails.avg_ela_score || 0) * 100).toFixed(2)}%
-                              </span>
+                        {/* Reasoning */}
+                        {pred?.details?.reasoning && (
+                          <div className="detail-section">
+                            <div className="detail-section-title">Verdict Reasoning</div>
+                            <div className="ai-summary-item">
+                              <span className="ai-summary-text">{pred.details.reasoning}</span>
                             </div>
                           </div>
-                        </div>
+                        )}
 
-                        {/* Noise Analysis */}
-                        <div className="detail-section">
-                          <div className="detail-section-title">
-                            Noise Analysis
-                          </div>
-                          <div className="detail-grid">
-                            <div className="detail-item">
-                              <span className="detail-item-label">Noise Profile</span>
-                              <span className={`indicator-tag ${mediaDetails.noise_analysis?.inconsistent_noise ? 'detected' : 'clear'}`}>
-                                {mediaDetails.noise_analysis?.inconsistent_noise ? 'Inconsistent' : 'Consistent'}
-                              </span>
+                        {/* Transcript */}
+                        {pred?.details?.transcript && (
+                          <div className="detail-section">
+                            <div className="detail-section-title">
+                              Audio Transcript
+                              {pred.details.language && pred.details.language !== 'unknown' && (
+                                <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>
+                                  [{pred.details.language.toUpperCase()}]
+                                </span>
+                              )}
+                              {pred.details.duration > 0 && (
+                                <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-muted)' }}>
+                                  {pred.details.duration}s
+                                </span>
+                              )}
                             </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Mean Noise</span>
-                              <span className="detail-item-value neutral">
-                                {mediaDetails.noise_analysis?.mean_noise}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Noise Variation</span>
-                              <span className={`detail-item-value ${mediaDetails.noise_analysis?.noise_variation > 0.5 ? 'negative' : 'neutral'}`}>
-                                {mediaDetails.noise_analysis?.noise_variation}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Manipulation Score</span>
-                              <span className={`detail-item-value ${mediaDetails.manipulation_score > 40 ? 'negative' : mediaDetails.manipulation_score > 20 ? 'neutral' : 'positive'}`}>
-                                {mediaDetails.manipulation_score}/100
+                            <div className="ai-summary-item">
+                              <span className="ai-summary-text" style={{ whiteSpace: 'pre-wrap' }}>
+                                {pred.details.transcript}
                               </span>
                             </div>
                           </div>
-                        </div>
+                        )}
+
+                        {/* Models used */}
+                        {pred?.details?.models && Object.keys(pred.details.models).length > 0 && (
+                          <div className="ai-summary-item">
+                            <span className="ai-summary-label">Powered by:</span>
+                            <span className="ai-summary-text ai-summary-source">
+                              {Object.values(pred.details.models).join(' + ')}
+                            </span>
+                          </div>
+                        )}
                       </>
+                    )}
+
+                    {/* AI Analysis Summary (Groq Vision — image only) */}
+                    {currentAnalysis?.analysisType !== 'video' && (pred?.details?.reasoning || pred?.details?.imageDescription) && (
+                      <div className="detail-section">
+                        <div className="detail-section-title">AI Analysis Summary</div>
+                        {pred.details.imageDescription && (
+                          <div className="ai-summary-item">
+                            <span className="ai-summary-label">What the image shows:</span>
+                            <span className="ai-summary-text">{pred.details.imageDescription}</span>
+                          </div>
+                        )}
+                        {pred.details.imageMatchLabel && (
+                          <div className="ai-summary-item">
+                            <span className="ai-summary-label">Image vs Claim:</span>
+                            <span className={`ai-summary-text ai-summary-verdict ${pred.details.imageMatchLabel.toLowerCase()}`}>
+                              {pred.details.imageMatchLabel}
+                              {pred.details.imageMatchReasoning ? ` — ${pred.details.imageMatchReasoning}` : ''}
+                            </span>
+                          </div>
+                        )}
+                        {pred.details.claimFactLabel && (
+                          <div className="ai-summary-item">
+                            <span className="ai-summary-label">Claim Fact-Check:</span>
+                            <span className={`ai-summary-text ai-summary-verdict ${pred.details.claimFactLabel.toLowerCase()}`}>
+                              {pred.details.claimFactLabel}
+                              {pred.details.claimFactReasoning ? ` — ${pred.details.claimFactReasoning}` : ''}
+                            </span>
+                          </div>
+                        )}
+                        {pred.details.reasoning && !pred.details.imageMatchLabel && (
+                          <div className="ai-summary-item">
+                            <span className="ai-summary-label">Reasoning:</span>
+                            <span className="ai-summary-text">{pred.details.reasoning}</span>
+                          </div>
+                        )}
+                        {pred.details.reasoning && pred.details.imageMatchLabel && (
+                          <div className="ai-summary-item">
+                            <span className="ai-summary-label">Final Verdict Reasoning:</span>
+                            <span className="ai-summary-text">{pred.details.reasoning}</span>
+                          </div>
+                        )}
+                        {pred.details.source && (
+                          <div className="ai-summary-item">
+                            <span className="ai-summary-label">Powered by:</span>
+                            <span className="ai-summary-text ai-summary-source">{pred.details.model || pred.details.source}</span>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {/* Info note */}
@@ -536,8 +568,8 @@ const MediaAnalyzePage = () => {
                       <FiInfo />
                       <span>
                         {currentAnalysis?.analysisType === 'image'
-                          ? 'Analysis uses Error Level Analysis (ELA), metadata inspection, and pixel statistics to detect manipulations.'
-                          : 'Analysis extracts frames and checks temporal consistency, noise profiles, and per-frame ELA.'}
+                          ? 'Analysis uses AI vision (Llama 4 Scout) to assess image authenticity and match it against the provided claim.'
+                          : 'Audio transcribed locally with Whisper, then fact-checked with Groq (2 API calls total).'}
                       </span>
                     </div>
                   </div>

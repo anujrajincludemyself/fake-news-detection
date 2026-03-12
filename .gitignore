@@ -9,6 +9,13 @@ dist/
 *.egg-info/
 __pycache__/
 *.pyc
+*.pyo
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
 
 # Environment variables
 .env
@@ -16,6 +23,10 @@ __pycache__/
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Firebase service account credentials (NEVER commit these)
+firebase-service-account.json
+*firebase-adminsdk*.json
 
 # IDE
 .vscode/

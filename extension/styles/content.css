@@ -1,0 +1,441 @@
+/* TruthLens Content Overlay Styles
+   All classes prefixed with tl- to avoid conflicts */
+
+#tl-overlay-root {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #e2e8f0;
+  pointer-events: none;
+}
+
+.tl-widget {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* ─── Loading pill ─────────────────────────────── */
+.tl-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(15, 15, 28, 0.92);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 999px;
+  padding: 8px 14px;
+  color: #a5b4fc;
+  font-size: 12px;
+  font-weight: 500;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+  animation: tl-slide-up 0.3s ease-out;
+}
+
+.tl-loading-icon {
+  animation: tl-spin 1.1s linear infinite;
+  display: flex;
+  align-items: center;
+}
+
+/* ─── Result pill (collapsed) ───────────────────── */
+.tl-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(15, 15, 28, 0.94);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 999px;
+  padding: 7px 13px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.55);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  animation: tl-slide-up 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tl-pill:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+
+.tl-pill-icon {
+  display: flex;
+  align-items: center;
+}
+
+.tl-pill-verdict {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.tl-pill-confidence {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.tl-expand-btn {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  cursor: pointer;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
+}
+
+.tl-expand-btn:hover {
+  color: #cbd5e1;
+}
+
+/* ─── Full card ──────────────────────────────────── */
+.tl-card {
+  width: 300px;
+  background: rgba(10, 10, 22, 0.96);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow:
+    0 20px 60px rgba(0,0,0,0.7),
+    0 0 0 1px rgba(255,255,255,0.04) inset;
+  overflow: hidden;
+  flex-direction: column;
+  animation: tl-slide-up 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ─── Card Header ────────────────────────────────── */
+.tl-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.tl-logo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #c7d2fe;
+  letter-spacing: 0.02em;
+}
+
+.tl-header-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.tl-icon-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 5px;
+  cursor: pointer;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  transition: all 0.15s;
+}
+
+.tl-icon-btn:hover {
+  color: #e2e8f0;
+  border-color: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.06);
+}
+
+/* ─── Verdict section ────────────────────────────── */
+.tl-verdict-section {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 16px 12px;
+}
+
+.tl-gauge-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.tl-gauge-svg {
+  transform: rotate(-90deg);
+  display: block;
+}
+
+.tl-gauge-track {
+  fill: none;
+  stroke: rgba(255,255,255,0.07);
+  stroke-width: 8;
+}
+
+.tl-gauge-fill {
+  fill: none;
+  stroke-width: 8;
+  transition: stroke-dasharray 0.8s cubic-bezier(0.34, 1.56, 0.64, 1),
+              stroke 0.4s ease;
+}
+
+.tl-gauge-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.tl-gauge-score {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  transition: color 0.4s ease;
+}
+
+.tl-gauge-sub {
+  font-size: 9px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 2px;
+}
+
+.tl-verdict-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.tl-verdict-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.tl-confidence-line {
+  font-size: 10px;
+  color: #475569;
+  margin-bottom: 5px;
+  text-transform: lowercase;
+}
+
+.tl-reasoning {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ─── Metrics ────────────────────────────────────── */
+.tl-metrics {
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding: 10px 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.tl-metric-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tl-metric-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #475569;
+  width: 58px;
+  flex-shrink: 0;
+}
+
+.tl-bar-wrap {
+  flex: 1;
+  height: 5px;
+  background: rgba(255,255,255,0.07);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.tl-bar {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+  width: 0%;
+}
+
+.tl-metric-pct {
+  font-size: 10px;
+  color: #64748b;
+  width: 30px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Bias meter */
+.tl-bias-meter {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tl-bias-left,
+.tl-bias-right {
+  font-size: 9px;
+  font-weight: 700;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.tl-bias-track {
+  flex: 1;
+  height: 5px;
+  background: linear-gradient(to right,
+    rgba(96, 165, 250, 0.4),
+    rgba(255,255,255,0.05) 50%,
+    rgba(248, 113, 113, 0.4));
+  border-radius: 999px;
+  position: relative;
+}
+
+.tl-bias-thumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(0,0,0,0.5);
+  transition: left 0.7s cubic-bezier(0.34, 1.56, 0.64, 1);
+  left: 50%;
+}
+
+.tl-bias-value {
+  font-size: 10px;
+  color: #64748b;
+  flex-shrink: 0;
+  min-width: 70px;
+  text-align: right;
+}
+
+/* ─── Flags ──────────────────────────────────────── */
+.tl-flags {
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding: 8px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tl-flag {
+  font-size: 11px;
+  padding: 3px 0;
+  line-height: 1.4;
+}
+
+.tl-flag-red {
+  color: #fca5a5;
+}
+
+.tl-flag-green {
+  color: #86efac;
+}
+
+/* ─── Actions ────────────────────────────────────── */
+.tl-actions {
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tl-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.tl-action-btn:hover {
+  background: rgba(99, 102, 241, 0.22);
+  border-color: rgba(99, 102, 241, 0.5);
+  color: #c7d2fe;
+}
+
+.tl-action-btn-active {
+  background: rgba(99, 102, 241, 0.25) !important;
+  border-color: rgba(99, 102, 241, 0.6) !important;
+  color: #e0e7ff !important;
+}
+
+.tl-powered {
+  font-size: 9.5px;
+  color: #334155;
+  flex-shrink: 0;
+}
+
+/* ─── Suspicious text highlight (injected into article) ── */
+mark.tl-suspicious-highlight {
+  background: rgba(251, 191, 36, 0.22) !important;
+  border-bottom: 2px solid #fbbf24 !important;
+  color: inherit !important;
+  border-radius: 2px;
+  padding: 1px 0;
+  cursor: help;
+  position: relative;
+}
+
+mark.tl-suspicious-highlight::after {
+  content: attr(title);
+  display: none;
+}
+
+/* ─── Animations ─────────────────────────────────── */
+@keyframes tl-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes tl-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

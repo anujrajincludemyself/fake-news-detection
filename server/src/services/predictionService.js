@@ -1,59 +1,65 @@
-const fetch = require('node-fetch');
 const logger = require('../utils/logger');
 const NLPAnalyzer = require('./nlpAnalyzer');
+const HuggingFaceService = require('./huggingFaceService');
+const GeminiService = require('./geminiService');
+const GroqService = require('./groqService');
 
 class PredictionService {
   /**
-   * Get prediction from ML microservice or fallback to NLP analysis
+   * Text analysis fallback chain:
+   *   1. Groq      — llama-3.3-70b, 14,400 req/day, 30 RPM, best free option
+   *   2. Gemini    — gemini-2.0-flash, 1,500 req/day, backup LLM
+   *   3. HuggingFace — RoBERTa classifier, style-based, no world knowledge
+   *   4. Local NLP — zero API calls, always works, style-based only
    */
   static async predict(text) {
-    try {
-      // Try ML microservice first
-      const mlResult = await this.callMLService(text);
-      if (mlResult) {
-        return mlResult;
+    // Tier 1: Groq (primary LLM)
+    if (process.env.GROQ_API_KEY) {
+      try {
+        const result = await GroqService.analyzeText(text);
+        logger.info(`Text analysis via Groq: ${result.label} (${result.confidence}%)`);
+        return result;
+      } catch (err) {
+        const reason = err.isRateLimit ? 'rate limit' : err.message;
+        logger.warn(`Groq failed (${reason}), trying Gemini`);
       }
-    } catch (error) {
-      logger.warn(
-        'ML service unavailable, falling back to NLP analysis:',
-        error.message
-      );
     }
 
-    // Fallback to built-in NLP analysis
-    return NLPAnalyzer.analyze(text);
-  }
-
-  static async callMLService(text) {
-    const mlUrl = process.env.ML_SERVICE_URL || 'http://localhost:8000';
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
-
-    try {
-      const response = await fetch(`${mlUrl}/predict`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        throw new Error(`ML service returned ${response.status}`);
+    // Tier 2: Gemini (backup LLM)
+    if (process.env.GEMINI_API_KEY) {
+      try {
+        const result = await GeminiService.analyzeText(text);
+        logger.info(`Text analysis via Gemini: ${result.label} (${result.confidence}%)`);
+        return result;
+      } catch (err) {
+        const reason = err.isRateLimit ? 'rate limit' : err.message;
+        logger.warn(`Gemini failed (${reason}), trying HuggingFace`);
       }
-
-      const data = await response.json();
-      return {
-        label: data.label,
-        confidence: data.confidence,
-        details: data.details || NLPAnalyzer.analyze(text).details,
-      };
-    } catch (error) {
-      clearTimeout(timeout);
-      throw error;
     }
+
+    // Tier 3: HuggingFace (style-based classifier, no world knowledge)
+    if (process.env.HUGGINGFACE_API_TOKEN) {
+      try {
+        const result = await HuggingFaceService.analyzeText(text);
+        logger.info(`Text analysis via HuggingFace: ${result.label} (${result.confidence}%)`);
+        return result;
+      } catch (err) {
+        const reason = err.isRateLimit ? 'rate limit' : err.message;
+        logger.warn(`HuggingFace failed (${reason}), falling back to local NLP`);
+      }
+    }
+
+    // Tier 4: Local NLP — always works, style-based only, cannot detect satire
+    logger.info('Text analysis via local NLP (style-based only, no world knowledge)');
+    const nlpResult = NLPAnalyzer.analyze(text);
+    return {
+      ...nlpResult,
+      confidence: Math.min(nlpResult.confidence, 70),
+      details: {
+        ...nlpResult.details,
+        warning: 'Local NLP only — satire and implausible content may not be detected.',
+      },
+    };
   }
 }
 

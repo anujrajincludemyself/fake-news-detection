@@ -9,7 +9,7 @@ const {
 } = require('../controllers/analysisController');
 const { protect, optionalAuth } = require('../middleware/auth');
 
-router.post('/', optionalAuth, analyzeNews);
+router.post('/', protect, analyzeNews);
 router.get('/history', protect, getHistory);
 router.get('/stats', protect, getStats);
 router.get('/:id', getAnalysis);

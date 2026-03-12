@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// Normalise the base URL so it always ends with /api.
+// This tolerates REACT_APP_API_URL being set with or without the /api suffix.
+const _rawBase =
+  process.env.REACT_APP_API_URL || 'https://fake-news-detection-f1ha.onrender.com';
+const API_URL = _rawBase.replace(/\/api\/?$/, '') + '/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -28,7 +32,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('fn_token');
       localStorage.removeItem('fn_user');
-      if (window.location.pathname !== '/login') {
+      const { pathname } = window.location;
+      if (pathname !== '/login' && pathname !== '/register') {
         window.location.href = '/login';
       }
     }
