@@ -33,25 +33,30 @@ app.use(helmet());
 
 // CORS — allow all origins in dev (API key secures the extension endpoint).
 // In production lock CLIENT_URL down via environment variable.
+// Build the allowed-origins list for production.
+// CLIENT_URL can be a comma-separated list of origins (e.g. for preview deploys).
+const PRODUCTION_ORIGINS = [
+  // Always allow the primary Vercel frontend
+  'https://fake-news-detection-seven-delta.vercel.app',
+  // Allow any extra origins supplied at deploy-time
+  ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map((u) => u.trim()) : []),
+].filter(Boolean);
+
 app.use(
   cors({
     origin:
       process.env.NODE_ENV === 'production'
         ? (origin, cb) => {
-            const allowed = [
-              process.env.CLIENT_URL,
-              // extensions carry the news-site origin, allow them via keyword
-            ].filter(Boolean);
-            // allow if no origin, matches whitelist, or is a browser extension
+            // Allow server-to-server (no Origin), whitelisted origins, or browser extensions
             if (
               !origin ||
-              allowed.includes(origin) ||
+              PRODUCTION_ORIGINS.includes(origin) ||
               /^chrome-extension:\/\//i.test(origin) ||
               /^moz-extension:\/\//i.test(origin)
             ) {
               return cb(null, true);
             }
-            cb(null, false); // silently deny, no error thrown
+            cb(new Error(`CORS: origin ${origin} not allowed`));
           }
         : '*', // development: allow everything
     credentials: false,
