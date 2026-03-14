@@ -1,4 +1,5 @@
 const SiteRecord = require('../models/SiteRecord');
+const WallTrendingService = require('../services/wallTrendingService');
 
 /**
  * @desc  Get all site records for the Wall of Fake
@@ -31,6 +32,22 @@ exports.getWall = async (req, res, next) => {
     }));
 
     res.status(200).json({ success: true, data: lean });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc  Get hourly trending rumor for Wall of Fake hero section
+ * @route GET /api/wall/trending-rumor
+ * @access Public
+ */
+exports.getTrendingRumor = async (req, res, next) => {
+  try {
+    const forceRefresh = req.query.refresh === 'true';
+    const data = await WallTrendingService.getHourlyTrendingRumor({ forceRefresh });
+
+    res.status(200).json({ success: true, data });
   } catch (error) {
     next(error);
   }
