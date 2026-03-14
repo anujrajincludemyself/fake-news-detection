@@ -189,6 +189,91 @@
 }
 
 /* =============================================
+   TRENDING RUMOR HERO
+   ============================================= */
+.home-rumor-hero {
+  margin-top: 1.4rem;
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: left;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(167, 139, 250, 0.08));
+  border: 1px solid rgba(167, 139, 250, 0.28);
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 10px 34px rgba(31, 41, 55, 0.28);
+}
+
+.home-rumor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.home-rumor-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-purple);
+}
+
+.home-rumor-next-refresh {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.home-rumor-catchy {
+  margin: 0.55rem 0 0.35rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.home-rumor-title {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+}
+
+.home-rumor-meta {
+  margin-top: 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.home-rumor-meta a {
+  color: var(--accent-purple);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.home-rumor-meta a:hover {
+  text-decoration: underline;
+}
+
+.home-rumor-loading,
+.home-rumor-error {
+  margin: 0.7rem 0 0;
+  font-size: 0.88rem;
+}
+
+.home-rumor-error {
+  color: #fca5a5;
+}
+
+/* =============================================
    SECTION SHARED
    ============================================= */
 .section-header {
@@ -440,6 +525,7 @@
   .home-hero     { padding: 4rem 0 3rem; }
   .hero-title    { font-size: 2.5rem; }
   .hero-subtitle { font-size: 1rem; }
+  .home-rumor-catchy { font-size: 1.05rem; }
   .hero-stats    { gap: 1.75rem; }
   .feature-grid  { grid-template-columns: 1fr; }
   .steps-grid    { grid-template-columns: 1fr; }

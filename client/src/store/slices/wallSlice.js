@@ -3,6 +3,7 @@ import api from '../../services/api';
 // Lazy import via string-matching to avoid circular deps — see addMatcher below
 
 const CACHE_TTL_MS = 60 * 1000;
+const RUMOR_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export const fetchWall = createAsyncThunk(
   'wall/fetch',
@@ -25,6 +26,26 @@ export const fetchWall = createAsyncThunk(
   }
 );
 
+export const fetchTrendingRumor = createAsyncThunk(
+  'wall/fetchTrendingRumor',
+  async (_, { rejectWithValue }) => {
+    try {
+      const { data } = await api.get('/wall/trending-rumor');
+      return data.data;
+    } catch (error) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to load trending rumor');
+    }
+  },
+  {
+    condition: (_, { getState }) => {
+      const { rumorLoading, rumorLastFetched } = getState().wall;
+      if (rumorLoading) return false;
+      if (rumorLastFetched && Date.now() - rumorLastFetched < RUMOR_CACHE_TTL_MS) return false;
+      return true;
+    },
+  }
+);
+
 const wallSlice = createSlice({
   name: 'wall',
   initialState: {
@@ -32,10 +53,15 @@ const wallSlice = createSlice({
     loading: false,
     error: null,
     lastFetched: null,
+    trendingRumor: null,
+    rumorLoading: false,
+    rumorError: null,
+    rumorLastFetched: null,
   },
   reducers: {
     resetFetched: (state) => {
       state.lastFetched = null;
+      state.rumorLastFetched = null;
     },
   },
   extraReducers: (builder) => {
@@ -52,6 +78,19 @@ const wallSlice = createSlice({
       .addCase(fetchWall.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      })
+      .addCase(fetchTrendingRumor.pending, (state) => {
+        state.rumorLoading = true;
+        state.rumorError = null;
+      })
+      .addCase(fetchTrendingRumor.fulfilled, (state, action) => {
+        state.rumorLoading = false;
+        state.trendingRumor = action.payload;
+        state.rumorLastFetched = Date.now();
+      })
+      .addCase(fetchTrendingRumor.rejected, (state, action) => {
+        state.rumorLoading = false;
+        state.rumorError = action.payload;
       })
       // Invalidate our cache whenever an article analysis finishes — server just updated SiteRecord
       .addMatcher(
