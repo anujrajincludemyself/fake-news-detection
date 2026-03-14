@@ -24,6 +24,7 @@
     {
       "matches": [
         "*://*.theguardian.com/*",
+        "*://*.indianexpress.com/*",
         "*://*.bbc.com/*",
         "*://*.bbc.co.uk/*",
         "*://*.cnn.com/*",
@@ -102,6 +103,7 @@
         "*://*.etvbharat.com/*",
         "*://*.latestly.com/*",
         "*://*.thequint.com/*",
+        "*://www.boomlive.in/*",
         "*://*.boomlive.in/*",
         "*://*.altnews.in/*",
         "*://*.factly.in/*",

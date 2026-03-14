@@ -13,18 +13,25 @@ import math
 import struct
 import logging
 import tempfile
+import shutil
+import subprocess
+from pathlib import Path
+from typing import Optional
 from contextlib import asynccontextmanager
 
 import joblib
 import nltk
 import numpy as np
-from fastapi import FastAPI, HTTPException, File, UploadFile
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from features import StructuralFeatureExtractor
 from PIL import Image, ImageChops, ImageEnhance, ExifTags
+
+load_dotenv()
 
 # Setup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
@@ -45,6 +52,10 @@ struct_extractor = None
 yolo_model = None
 mobilenet_model = None
 mobilenet_transform = None
+visual_deepfake_model = None
+visual_transform = None
+voice_encoder = None
+whisper_model = None
 
 
 def preprocess_text(text: str) -> str:
@@ -132,11 +143,74 @@ def load_mobilenet_model():
         logger.warning(f'Could not load MobileNetV2 ({e}). Deep-feature image analysis will be skipped.')
 
 
+def load_visual_deepfake_model():
+    """Load optional EfficientNet deepfake classifier from models/."""
+    global visual_deepfake_model, visual_transform
+    try:
+        import torch
+        import torchvision.models as tv_models
+        import torchvision.transforms as transforms
+
+        candidate_paths = [
+            os.path.join(MODELS_DIR, 'deepfake_model.pth'),
+            os.path.join(MODELS_DIR, 'efficientnet_deepfake.pth'),
+        ]
+        model_path = next((p for p in candidate_paths if os.path.exists(p)), None)
+        if not model_path:
+            logger.info('No EfficientNet deepfake model found in models/. Visual risk will use forensic fallback.')
+            return
+
+        loaded = torch.load(model_path, map_location='cpu')
+        if hasattr(loaded, 'eval'):
+            visual_deepfake_model = loaded
+        else:
+            model = tv_models.efficientnet_b0(weights=None)
+            model.classifier[1] = torch.nn.Linear(model.classifier[1].in_features, 1)
+            model.load_state_dict(loaded, strict=False)
+            visual_deepfake_model = model
+
+        visual_deepfake_model.eval()
+        visual_transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+        ])
+        logger.info(f'Visual deepfake model loaded from {model_path}.')
+    except Exception as e:
+        logger.warning(f'Could not load visual deepfake model ({e}). Forensic fallback will be used.')
+
+
+def load_voice_encoder():
+    """Load Resemblyzer encoder for voice authenticity checks."""
+    global voice_encoder
+    try:
+        from resemblyzer import VoiceEncoder
+        voice_encoder = VoiceEncoder()
+        logger.info('Resemblyzer voice encoder loaded.')
+    except Exception as e:
+        logger.warning(f'Could not load Resemblyzer voice encoder ({e}). Voice scoring will fallback to unknown risk.')
+
+
+def load_whisper_model():
+    """Load faster-whisper model used for speech-to-text."""
+    global whisper_model
+    try:
+        from faster_whisper import WhisperModel
+        model_size = os.getenv('WHISPER_MODEL_SIZE', 'base')
+        whisper_model = WhisperModel(model_size, device='cpu', compute_type='int8')
+        logger.info(f'faster-whisper model loaded ({model_size}).')
+    except Exception as e:
+        logger.warning(f'Could not load faster-whisper model ({e}). Transcription will be unavailable.')
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_model()
     load_yolo_model()
     load_mobilenet_model()
+    load_visual_deepfake_model()
+    load_voice_encoder()
+    load_whisper_model()
     yield
 
 
@@ -352,6 +426,9 @@ async def model_info():
         'structural_extractor_loaded': struct_extractor is not None,
         'yolo_loaded': yolo_model is not None,
         'mobilenet_loaded': mobilenet_model is not None,
+        'visual_deepfake_model_loaded': visual_deepfake_model is not None,
+        'voice_encoder_loaded': voice_encoder is not None,
+        'whisper_loaded': whisper_model is not None,
     }
 
 
@@ -889,6 +966,299 @@ def analyze_video_frames(frames: list, video_meta: dict) -> dict:
     }
 
 
+def require_ffmpeg() -> None:
+    """Ensure ffmpeg is installed and available on PATH."""
+    ffmpeg_path = os.getenv('FFMPEG_PATH', '').strip()
+    if ffmpeg_path and os.path.exists(ffmpeg_path):
+        return
+
+    if shutil.which('ffmpeg') is None:
+        raise HTTPException(status_code=500, detail='ffmpeg is not installed or not available on PATH.')
+
+
+def get_ffmpeg_bin() -> str:
+    """Return ffmpeg executable name/path."""
+    ffmpeg_path = os.getenv('FFMPEG_PATH', '').strip()
+    if ffmpeg_path and os.path.exists(ffmpeg_path):
+        return ffmpeg_path
+    return 'ffmpeg'
+
+
+def extract_frames_with_ffmpeg(video_path: str, fps: int = 1) -> tuple[list[str], str]:
+    """Extract 1 frame per second by default and return frame paths + temp dir."""
+    require_ffmpeg()
+    ffmpeg_bin = get_ffmpeg_bin()
+    frame_dir = tempfile.mkdtemp(prefix='ml_frames_')
+    out_pattern = os.path.join(frame_dir, 'frame_%04d.jpg')
+
+    cmd = [
+        ffmpeg_bin, '-y',
+        '-i', video_path,
+        '-vf', f'fps={fps}',
+        '-q:v', '2',
+        out_pattern,
+    ]
+    subprocess.run(cmd, capture_output=True, check=True)
+
+    frame_paths = sorted(str(p) for p in Path(frame_dir).glob('frame_*.jpg'))
+    return frame_paths, frame_dir
+
+
+def extract_audio_with_ffmpeg(video_path: str) -> str:
+    """Extract mono 16 kHz WAV audio from a video file."""
+    require_ffmpeg()
+    ffmpeg_bin = get_ffmpeg_bin()
+    tmp_audio = tempfile.NamedTemporaryFile(suffix='.wav', delete=False, prefix='ml_audio_')
+    tmp_audio.close()
+
+    cmd = [
+        ffmpeg_bin, '-y',
+        '-i', video_path,
+        '-q:a', '0',
+        '-map', 'a',
+        '-ar', '16000',
+        '-ac', '1',
+        tmp_audio.name,
+    ]
+    subprocess.run(cmd, capture_output=True, check=True)
+    return tmp_audio.name
+
+
+def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+    """Cosine similarity in [0, 1] for embedding vectors."""
+    denom = (np.linalg.norm(a) * np.linalg.norm(b))
+    if denom == 0:
+        return 0.0
+    value = float(np.dot(a, b) / denom)
+    return max(0.0, min(1.0, value))
+
+
+def score_visual_deepfake(frame_paths: list[str]) -> dict:
+    """Compute visual deepfake risk from frames."""
+    if not frame_paths:
+        return {'risk': 50.0, 'method': 'no_frames', 'fake_probability': 0.5}
+
+    if visual_deepfake_model is not None and visual_transform is not None:
+        try:
+            import torch
+
+            probs = []
+            for path in frame_paths:
+                with Image.open(path) as img:
+                    input_tensor = visual_transform(img.convert('RGB')).unsqueeze(0)
+                with torch.no_grad():
+                    pred = visual_deepfake_model(input_tensor)
+                if isinstance(pred, (tuple, list)):
+                    pred = pred[0]
+                if getattr(pred, 'ndim', 0) == 2 and pred.shape[1] > 1:
+                    fake_prob = float(torch.softmax(pred, dim=1)[0, 1].item())
+                else:
+                    fake_prob = float(torch.sigmoid(pred.reshape(-1)[0]).item())
+                probs.append(fake_prob)
+
+            fake_probability = float(np.mean(probs)) if probs else 0.5
+            return {
+                'risk': round(fake_probability * 100.0, 2),
+                'method': 'efficientnet_deepfake_model',
+                'fake_probability': round(fake_probability, 4),
+                'frames_scored': len(probs),
+            }
+        except Exception as e:
+            logger.warning(f'Visual model scoring failed ({e}). Falling back to forensic scoring.')
+
+    ela_scores = []
+    for path in frame_paths[:30]:
+        try:
+            with Image.open(path) as img:
+                ela = error_level_analysis(img)
+                ela_scores.append(float(ela['suspicious_pixel_ratio']))
+        except Exception:
+            continue
+
+    avg_ela = float(np.mean(ela_scores)) if ela_scores else 0.03
+    risk = min(100.0, max(0.0, avg_ela * 1400.0))
+    return {
+        'risk': round(risk, 2),
+        'method': 'forensic_ela_fallback',
+        'avg_suspicious_pixel_ratio': round(avg_ela, 5),
+    }
+
+
+def score_voice_deepfake(audio_path: str, reference_audio_paths: Optional[list[str]] = None) -> dict:
+    """Compute voice deepfake risk using Resemblyzer embeddings."""
+    reference_audio_paths = reference_audio_paths or []
+
+    if voice_encoder is None:
+        return {
+            'risk': 50.0,
+            'method': 'unavailable',
+            'note': 'Resemblyzer is not installed or failed to load.',
+        }
+
+    try:
+        from resemblyzer import preprocess_wav
+
+        wav = preprocess_wav(Path(audio_path))
+        utt_emb, partial_embs, _ = voice_encoder.embed_utterance(wav, return_partials=True, rate=2)
+
+        if reference_audio_paths:
+            similarities = []
+            for ref_path in reference_audio_paths:
+                ref_wav = preprocess_wav(Path(ref_path))
+                ref_emb = voice_encoder.embed_utterance(ref_wav)
+                similarities.append(cosine_similarity(utt_emb, ref_emb))
+
+            max_sim = max(similarities) if similarities else 0.0
+            risk = (1.0 - max_sim) * 100.0
+            return {
+                'risk': round(max(0.0, min(100.0, risk)), 2),
+                'method': 'reference_similarity',
+                'max_similarity': round(max_sim, 4),
+                'reference_count': len(reference_audio_paths),
+            }
+
+        # No reference voice available: use temporal consistency heuristic.
+        # Very uniform partial embeddings can indicate synthetic voice generation artifacts.
+        similarities = [cosine_similarity(partial, utt_emb) for partial in partial_embs] if len(partial_embs) else []
+        mean_sim = float(np.mean(similarities)) if similarities else 0.95
+        std_sim = float(np.std(similarities)) if similarities else 0.01
+
+        risk = 45.0 + (mean_sim - 0.93) * 140.0 - std_sim * 120.0
+        risk = max(0.0, min(100.0, risk))
+
+        return {
+            'risk': round(risk, 2),
+            'method': 'embedding_consistency_heuristic',
+            'mean_similarity': round(mean_sim, 4),
+            'similarity_std': round(std_sim, 4),
+            'note': 'Upload reference voices for stronger verification.',
+        }
+    except Exception as e:
+        logger.error(f'Voice deepfake scoring failed: {e}')
+        return {
+            'risk': 50.0,
+            'method': 'error',
+            'note': str(e),
+        }
+
+
+def transcribe_audio_with_whisper(audio_path: str) -> dict:
+    """Transcribe audio to text using faster-whisper."""
+    if whisper_model is None:
+        return {
+            'transcript': '',
+            'language': 'unknown',
+            'segments': [],
+            'note': 'Whisper model unavailable',
+        }
+
+    segments_gen, info = whisper_model.transcribe(audio_path, beam_size=5, vad_filter=True)
+    segments = []
+    transcript_parts = []
+
+    for seg in segments_gen:
+        text = seg.text.strip()
+        segments.append({'start': round(seg.start, 2), 'end': round(seg.end, 2), 'text': text})
+        transcript_parts.append(text)
+
+    return {
+        'transcript': ' '.join(transcript_parts).strip(),
+        'language': getattr(info, 'language', 'unknown'),
+        'segments': segments,
+    }
+
+
+def map_fact_rating_to_risk(textual_rating: str) -> float:
+    """Map textual claim rating to a numeric fake-news risk."""
+    rating = (textual_rating or '').lower()
+
+    high = ['false', 'pants on fire', 'fake', 'mostly false', 'incorrect', 'misleading']
+    medium = ['half true', 'mixture', 'partly false', 'partly true', 'unproven']
+    low = ['true', 'mostly true', 'correct', 'accurate']
+
+    if any(token in rating for token in high):
+        return 85.0
+    if any(token in rating for token in medium):
+        return 55.0
+    if any(token in rating for token in low):
+        return 20.0
+    return 50.0
+
+
+async def fact_check_with_google_api(query_text: str) -> dict:
+    """Call Google Fact Check Tools API and convert reviews into a risk score."""
+    api_key = os.getenv('GOOGLE_FACT_CHECK_API_KEY', '').strip()
+    if not query_text.strip():
+        return {'risk': 50.0, 'claims': [], 'note': 'No text available for fact check'}
+
+    if not api_key:
+        return {
+            'risk': 50.0,
+            'claims': [],
+            'note': 'GOOGLE_FACT_CHECK_API_KEY is not set',
+        }
+
+    try:
+        import httpx
+    except Exception:
+        return {
+            'risk': 50.0,
+            'claims': [],
+            'note': 'httpx package is not installed',
+        }
+
+    url = 'https://factchecktools.googleapis.com/v1alpha1/claims:search'
+    params = {
+        'query': query_text[:800],
+        'languageCode': 'en-US',
+        'pageSize': 10,
+        'key': api_key,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as client:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+        payload = response.json()
+    except Exception as e:
+        logger.error(f'Google fact-check API failed: {e}')
+        return {'risk': 50.0, 'claims': [], 'note': f'Fact-check API error: {e}'}
+
+    claims = payload.get('claims', [])
+    simplified_claims = []
+    risks = []
+
+    for claim in claims:
+        claim_text = claim.get('text', '')
+        reviews = claim.get('claimReview', [])
+        simplified_reviews = []
+
+        for review in reviews:
+            textual_rating = review.get('textualRating', '')
+            publisher = (review.get('publisher') or {}).get('name', 'Unknown')
+            risk = map_fact_rating_to_risk(textual_rating)
+            risks.append(risk)
+            simplified_reviews.append({
+                'publisher': publisher,
+                'textualRating': textual_rating,
+                'risk': risk,
+                'url': review.get('url', ''),
+            })
+
+        simplified_claims.append({
+            'text': claim_text,
+            'claimant': claim.get('claimant', ''),
+            'reviews': simplified_reviews,
+        })
+
+    avg_risk = float(np.mean(risks)) if risks else 50.0
+    return {
+        'risk': round(avg_risk, 2),
+        'claims': simplified_claims,
+        'note': 'ok' if claims else 'No fact-check claims found for the transcript/context',
+    }
+
+
 @app.post('/predict/video')
 async def predict_video(file: UploadFile = File(...)):
     """Analyze an uploaded video for signs of manipulation."""
@@ -917,6 +1287,135 @@ async def predict_video(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f'Video analysis failed: {e}')
         raise HTTPException(500, 'Video analysis failed. Please try a different video.')
+
+
+@app.post('/predict/video/pipeline')
+async def predict_video_pipeline(
+    file: UploadFile = File(...),
+    context: str = Form(''),
+    reference_voices: list[UploadFile] = File(default=[]),
+):
+    """
+    End-to-end multimodal pipeline:
+    1) video -> frames (visual deepfake risk)
+    2) video -> audio (voice deepfake risk)
+    3) audio -> text (Whisper)
+    4) transcript/context -> Google Fact Check API
+    5) weighted final authenticity score
+    """
+    if not file.content_type or not file.content_type.startswith('video/'):
+        raise HTTPException(status_code=400, detail=f'Unsupported file type: {file.content_type}')
+
+    content = await file.read()
+    if len(content) > MAX_VIDEO_SIZE:
+        raise HTTPException(status_code=413, detail='Video too large. Maximum size is 100 MB.')
+
+    suffix = os.path.splitext(file.filename or '.mp4')[1] or '.mp4'
+    tmp_video = tempfile.NamedTemporaryFile(suffix=suffix, delete=False, prefix='pipeline_video_')
+    tmp_video.write(content)
+    tmp_video.close()
+
+    frame_paths: list[str] = []
+    frame_dir = ''
+    audio_path = ''
+    reference_paths: list[str] = []
+
+    try:
+        try:
+            frame_paths, frame_dir = extract_frames_with_ffmpeg(tmp_video.name, fps=1)
+        except subprocess.CalledProcessError as e:
+            msg = (e.stderr or b'').decode(errors='ignore')[:200]
+            raise HTTPException(status_code=500, detail=f'Frame extraction failed: {msg}')
+
+        if not frame_paths:
+            raise HTTPException(status_code=400, detail='No frames extracted from video')
+
+        try:
+            audio_path = extract_audio_with_ffmpeg(tmp_video.name)
+        except subprocess.CalledProcessError as e:
+            msg = (e.stderr or b'').decode(errors='ignore')[:200]
+            raise HTTPException(status_code=500, detail=f'Audio extraction failed: {msg}')
+
+        for ref in reference_voices:
+            ref_bytes = await ref.read()
+            if not ref_bytes:
+                continue
+            tmp_ref = tempfile.NamedTemporaryFile(suffix='.wav', delete=False, prefix='pipeline_ref_')
+            tmp_ref.write(ref_bytes)
+            tmp_ref.close()
+            reference_paths.append(tmp_ref.name)
+
+        visual = score_visual_deepfake(frame_paths)
+        voice = score_voice_deepfake(audio_path, reference_paths)
+        transcription = transcribe_audio_with_whisper(audio_path)
+
+        transcript_text = transcription.get('transcript', '')
+        fact_input = (context.strip() + ' ' + transcript_text.strip()).strip() if context else transcript_text
+        fact_check = await fact_check_with_google_api(fact_input)
+
+        visual_risk = float(visual.get('risk', 50.0))
+        voice_risk = float(voice.get('risk', 50.0))
+        fact_risk = float(fact_check.get('risk', 50.0))
+
+        final_risk = 0.4 * visual_risk + 0.25 * voice_risk + 0.35 * fact_risk
+        authenticity = max(0.0, min(100.0, 100.0 - final_risk))
+
+        return {
+            'videoAuthenticityScore': round(authenticity, 2),
+            'visualDeepfakeRisk': round(visual_risk, 2),
+            'voiceDeepfakeRisk': round(voice_risk, 2),
+            'factCheckRisk': round(fact_risk, 2),
+            'finalRisk': round(final_risk, 2),
+            'summary': {
+                'Video Authenticity Score': f"{authenticity:.2f}%",
+                'Visual Deepfake Risk': f"{visual_risk:.2f}%",
+                'Voice Deepfake Risk': f"{voice_risk:.2f}%",
+                'Fact-check Risk': f"{fact_risk:.2f}%",
+            },
+            'transcript': transcript_text,
+            'language': transcription.get('language', 'unknown'),
+            'segments': transcription.get('segments', []),
+            'factCheckClaims': fact_check.get('claims', []),
+            'debug': {
+                'visual': visual,
+                'voice': voice,
+                'fact_check_note': fact_check.get('note', ''),
+                'framesExtracted': len(frame_paths),
+                'referenceVoicesUsed': len(reference_paths),
+            },
+        }
+    finally:
+        if os.path.exists(tmp_video.name):
+            try:
+                os.unlink(tmp_video.name)
+            except Exception:
+                pass
+
+        if audio_path and os.path.exists(audio_path):
+            try:
+                os.unlink(audio_path)
+            except Exception:
+                pass
+
+        for path in reference_paths:
+            if os.path.exists(path):
+                try:
+                    os.unlink(path)
+                except Exception:
+                    pass
+
+        for frame_path in frame_paths:
+            if os.path.exists(frame_path):
+                try:
+                    os.unlink(frame_path)
+                except Exception:
+                    pass
+
+        if frame_dir and os.path.isdir(frame_dir):
+            try:
+                os.rmdir(frame_dir)
+            except Exception:
+                pass
 
 
 if __name__ == '__main__':

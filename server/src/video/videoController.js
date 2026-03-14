@@ -3,7 +3,7 @@
  * ───────────────────
  * POST /api/video/analyze
  *
- * Forwards uploaded videos to the ML microservice endpoint /predict/video.
+ * Forwards uploaded videos to the ML microservice endpoint /predict/video/pipeline.
  */
 
 const FormData = require('form-data');
@@ -25,16 +25,19 @@ exports.analyzeVideo = async (req, res, next) => {
 
     logger.info(`[Video] Received '${req.file.originalname}' (${(req.file.size / 1_048_576).toFixed(1)} MB), context: "${userContext}"`);
 
-    // Forward to ML microservice (/predict/video)
+    // Forward to ML microservice (/predict/video/pipeline)
     const form = new FormData();
     form.append('file', req.file.buffer, {
       filename: req.file.originalname,
       contentType: req.file.mimetype,
     });
+    if (userContext) {
+      form.append('context', userContext);
+    }
 
     let serviceData;
     try {
-      const serviceRes = await fetch(`${ML_SERVICE_URL}/predict/video`, {
+      const serviceRes = await fetch(`${ML_SERVICE_URL}/predict/video/pipeline`, {
         method: 'POST',
         body: form,
         headers: form.getHeaders(),
@@ -63,13 +66,19 @@ exports.analyzeVideo = async (req, res, next) => {
       throw fetchErr;
     }
 
-    // Normalize ML labels to the frontend's expected REAL/FAKE/UNCERTAIN scheme.
-    const rawLabel = String(serviceData?.label || 'UNCERTAIN').toUpperCase();
+    // Convert multimodal risk output into frontend's REAL/FAKE/UNCERTAIN scheme.
+    const authenticity = Number(serviceData?.videoAuthenticityScore ?? 50);
+    const rawLabel =
+      authenticity >= 60 ? 'REAL'
+      : authenticity <= 40 ? 'FAKE'
+      : 'UNCERTAIN';
     const normalizedLabel =
       rawLabel === 'AUTHENTIC' ? 'REAL' :
       rawLabel === 'MANIPULATED' ? 'FAKE' :
       rawLabel;
-    const normalizedConfidence = Number(serviceData?.confidence ?? 50);
+    const normalizedConfidence = Number.isFinite(authenticity)
+      ? Math.max(0, Math.min(100, Math.round(authenticity)))
+      : 50;
 
     logger.info(`[Video] Service result: ${normalizedLabel} (${normalizedConfidence}%)`);
 
@@ -89,16 +98,18 @@ exports.analyzeVideo = async (req, res, next) => {
         confidence: normalizedConfidence,
         details: {
           analysisType: 'video',
-          videoSummary: '',
-          transcript: '',
-          language: 'unknown',
+          videoSummary: serviceData?.summary
+            ? `Visual risk: ${serviceData.summary['Visual Deepfake Risk']}, Voice risk: ${serviceData.summary['Voice Deepfake Risk']}, Fact-check risk: ${serviceData.summary['Fact-check Risk']}`
+            : 'Multimodal video analysis completed.',
+          transcript: serviceData?.transcript || '',
+          language: serviceData?.language || 'unknown',
           duration: 0,
-          frameCount: serviceData?.details?.frames_analyzed || 0,
+          frameCount: serviceData?.debug?.framesExtracted || 0,
           userContext,
-          reasoning: 'Generated from ML forensic video analysis.',
-          models: { videoAnalysis: serviceData?.analysis_type || 'video' },
+          reasoning: `Authenticity ${normalizedConfidence}%. Visual ${serviceData?.visualDeepfakeRisk ?? 'N/A'}%, Voice ${serviceData?.voiceDeepfakeRisk ?? 'N/A'}%, Fact-check ${serviceData?.factCheckRisk ?? 'N/A'}%.`,
+          models: { videoAnalysis: 'multimodal_pipeline' },
           serviceErrors: [],
-          mlDetails: serviceData?.details || {},
+          mlDetails: serviceData || {},
         },
       },
       status: 'completed',
@@ -117,21 +128,27 @@ exports.analyzeVideo = async (req, res, next) => {
         analysisType: 'video',
         filename: req.file.originalname,
         userContext,
-        transcript: '',
-        language: 'unknown',
+        transcript: serviceData?.transcript || '',
+        language: serviceData?.language || 'unknown',
         duration: 0,
-        segments: [],
-        videoSummary: 'Forensic consistency analysis completed using ML video model.',
-        frameCount: serviceData?.details?.frames_analyzed || 0,
+        segments: serviceData?.segments || [],
+        videoSummary: serviceData?.summary
+          ? `Visual Deepfake Risk: ${serviceData.summary['Visual Deepfake Risk']} | Voice Deepfake Risk: ${serviceData.summary['Voice Deepfake Risk']} | Fact-check Risk: ${serviceData.summary['Fact-check Risk']}`
+          : 'Multimodal video analysis completed.',
+        frameCount: serviceData?.debug?.framesExtracted || 0,
         verdict: {
           label: normalizedLabel,
           confidence: normalizedConfidence,
-          reasoning: serviceData?.details?.manipulation_score != null
-            ? `Manipulation score: ${serviceData.details.manipulation_score}/100`
-            : 'Generated from ML forensic video analysis.',
+          reasoning: `Final authenticity ${normalizedConfidence}% (visual ${serviceData?.visualDeepfakeRisk ?? 'N/A'}%, voice ${serviceData?.voiceDeepfakeRisk ?? 'N/A'}%, fact-check ${serviceData?.factCheckRisk ?? 'N/A'}%).`,
+          models: {
+            pipeline: 'video/pipeline',
+            visualRisk: serviceData?.visualDeepfakeRisk,
+            voiceRisk: serviceData?.voiceDeepfakeRisk,
+            factCheckRisk: serviceData?.factCheckRisk,
+          },
         },
         errors: [],
-        mlDetails: serviceData?.details || {},
+        mlDetails: serviceData || {},
         createdAt: analysis.createdAt,
       },
     });
