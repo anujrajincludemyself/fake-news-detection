@@ -9,12 +9,31 @@ import {
   HiDatabase,
   HiFilm,
 } from 'react-icons/hi';
-import { FiArrowRight, FiSearch, FiCpu, FiCheckCircle, FiBarChart2, FiX, FiAlertCircle } from 'react-icons/fi';
+import { FiArrowRight, FiSearch, FiCpu, FiCheckCircle, FiBarChart2, FiX, FiAlertCircle, FiClock, FiExternalLink } from 'react-icons/fi';
 import { loginUser, registerUser, clearError } from '../store/slices/authSlice';
+import { fetchTrendingRumor } from '../store/slices/wallSlice';
 import FeatureCard from '../components/ui/FeatureCard';
 import StepCard from '../components/ui/StepCard';
 import SectionHeader from '../components/ui/SectionHeader';
 import './HomePage.css';
+
+function timeAgo(ts) {
+  if (!ts) return '';
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+function formatRefreshTime(ts) {
+  if (!ts) return '';
+  const date = new Date(ts);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
 
 const heroFade = {
   hidden: { opacity: 0, y: 32 },
@@ -52,6 +71,9 @@ const HomePage = () => {
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
   const loading = useSelector((state) => state.auth.loading);
   const authError = useSelector((state) => state.auth.error);
+  const trendingRumor = useSelector((state) => state.wall.trendingRumor);
+  const rumorLoading = useSelector((state) => state.wall.rumorLoading);
+  const rumorError = useSelector((state) => state.wall.rumorError);
 
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
@@ -70,6 +92,10 @@ const HomePage = () => {
       if (postLoginRoute) navigate(postLoginRoute);
     }
   }, [isAuthenticated, showAuthModal, postLoginRoute, navigate, dispatch]);
+
+  useEffect(() => {
+    dispatch(fetchTrendingRumor());
+  }, [dispatch]);
 
   const openAuthModal = (mode = 'login', route = null) => {
     dispatch(clearError());
@@ -306,7 +332,48 @@ const HomePage = () => {
               </button>
             </motion.div>
 
-            <motion.div className="hero-stats" custom={4} variants={heroFade}>
+            {(trendingRumor || rumorLoading || rumorError) && (
+              <motion.div className="home-rumor-hero" custom={4} variants={heroFade}>
+                <div className="home-rumor-header">
+                  <span className="home-rumor-label">🔥 Trending Rumor Pulse</span>
+                  {trendingRumor?.nextRefreshAt && (
+                    <span className="home-rumor-next-refresh">
+                      <FiClock size={13} />
+                      Updates at {formatRefreshTime(trendingRumor.nextRefreshAt)}
+                    </span>
+                  )}
+                </div>
+
+                {rumorLoading && !trendingRumor && <p className="home-rumor-loading">Finding the most believed lie…</p>}
+
+                {rumorError && !trendingRumor && (
+                  <p className="home-rumor-error">
+                    <FiAlertCircle size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+                    {rumorError}
+                  </p>
+                )}
+
+                {trendingRumor && (
+                  <>
+                    <h2 className="home-rumor-catchy">{trendingRumor.catchyLine}</h2>
+                    <p className="home-rumor-title">{trendingRumor.title}</p>
+                    <div className="home-rumor-meta">
+                      {trendingRumor.publishedAt && <span>Published {timeAgo(trendingRumor.publishedAt)}</span>}
+                      {trendingRumor.keywords?.length > 0 && (
+                        <span>Keywords: {trendingRumor.keywords.slice(0, 3).join(' · ')}</span>
+                      )}
+                      {trendingRumor.sourceUrl && (
+                        <a href={trendingRumor.sourceUrl} target="_blank" rel="noreferrer">
+                          Open source <FiExternalLink size={12} style={{ verticalAlign: 'middle' }} />
+                        </a>
+                      )}
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            )}
+
+            <motion.div className="hero-stats" custom={5} variants={heroFade}>
               {stats.map((s) => (
                 <div className="hero-stat" key={s.label}>
                   <div className="hero-stat-number">{s.number}</div>
