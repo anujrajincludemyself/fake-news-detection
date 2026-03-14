@@ -1,20 +1,21 @@
-import React, { useEffect } from 'react';
+import React, { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { initNotifications } from './services/notificationService';
 
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
-import HomePage from './pages/HomePage';
-import AnalyzePage from './pages/AnalyzePage';
-import MediaAnalyzePage from './pages/MediaAnalyzePage';
-import DashboardPage from './pages/DashboardPage';
-import HistoryPage from './pages/HistoryPage';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import AboutPage from './pages/AboutPage';
-import WallOfFakePage from './pages/WallOfFakePage';
-import NetworkGraphPage from './pages/NetworkGraphPage';
+
+const HomePage = lazy(() => import('./pages/HomePage'));
+const AnalyzePage = lazy(() => import('./pages/AnalyzePage'));
+const MediaAnalyzePage = lazy(() => import('./pages/MediaAnalyzePage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const HistoryPage = lazy(() => import('./pages/HistoryPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const WallOfFakePage = lazy(() => import('./pages/WallOfFakePage'));
+const NetworkGraphPage = lazy(() => import('./pages/NetworkGraphPage'));
 
 function ProtectedRoute({ children }) {
   const isAuthenticated = useSelector((state) => state.auth.isAuthenticated);
@@ -46,19 +47,21 @@ function App() {
     <div className="app">
       <Navbar />
       <main>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/analyze" element={<ProtectedRoute><AnalyzePage /></ProtectedRoute>} />
-          <Route path="/media-analyze" element={<ProtectedRoute><MediaAnalyzePage /></ProtectedRoute>} />
-          <Route path="/wall-of-fake" element={<WallOfFakePage />} />
-          <Route path="/network" element={<NetworkGraphPage />} />
-          <Route path="/about" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
-          <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-          <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
-          <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
-          <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Suspense fallback={<div style={{ padding: '2rem' }}>Loading page...</div>}>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/analyze" element={<ProtectedRoute><AnalyzePage /></ProtectedRoute>} />
+            <Route path="/media-analyze" element={<ProtectedRoute><MediaAnalyzePage /></ProtectedRoute>} />
+            <Route path="/wall-of-fake" element={<WallOfFakePage />} />
+            <Route path="/network" element={<NetworkGraphPage />} />
+            <Route path="/about" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+            <Route path="/history" element={<ProtectedRoute><HistoryPage /></ProtectedRoute>} />
+            <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+            <Route path="/register" element={<GuestRoute><RegisterPage /></GuestRoute>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </main>
       <Footer />
     </div>
