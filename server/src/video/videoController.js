@@ -3,14 +3,7 @@
  * ───────────────────
  * POST /api/video/analyze
  *
- * Forwards the uploaded video to the local Python video-processing service
- * (http://localhost:8001/process) which handles:
- *   - Frame extraction (ffmpeg, local)
- *   - Audio transcription (faster-whisper, local GPU/CPU)
- *   - Groq vision call  (description — transcript + 2 frames)
- *   - Groq text call    (fact-check verdict)
- *
- * Total Groq calls per video: 2 (instead of 7+ in the naive approach)
+ * Forwards uploaded videos to the ML microservice endpoint /predict/video.
  */
 
 const FormData = require('form-data');
@@ -19,7 +12,7 @@ const Analysis = require('../models/Analysis');
 const User = require('../models/User');
 const logger = require('../utils/logger');
 
-const VIDEO_SERVICE_URL = process.env.VIDEO_SERVICE_URL || 'http://localhost:8001';
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8000';
 
 exports.analyzeVideo = async (req, res, next) => {
   try {
@@ -32,22 +25,20 @@ exports.analyzeVideo = async (req, res, next) => {
 
     logger.info(`[Video] Received '${req.file.originalname}' (${(req.file.size / 1_048_576).toFixed(1)} MB), context: "${userContext}"`);
 
-    // ── Forward to video-processing Python service ───────────────────────────
+    // Forward to ML microservice (/predict/video)
     const form = new FormData();
     form.append('file', req.file.buffer, {
       filename: req.file.originalname,
       contentType: req.file.mimetype,
     });
-    form.append('context', userContext);
-    form.append('title', title);
 
     let serviceData;
     try {
-      const serviceRes = await fetch(`${VIDEO_SERVICE_URL}/process`, {
+      const serviceRes = await fetch(`${ML_SERVICE_URL}/predict/video`, {
         method: 'POST',
         body: form,
         headers: form.getHeaders(),
-        timeout: 180_000, // 3 min — whisper transcription can take a while
+        timeout: 180_000,
       });
 
       if (!serviceRes.ok) {
@@ -56,23 +47,31 @@ exports.analyzeVideo = async (req, res, next) => {
         logger.error(`[Video] Service error: ${msg}`);
         return res.status(502).json({
           success: false,
-          message: `Video processing service error: ${msg}`,
+          message: `ML video analysis service error: ${msg}`,
         });
       }
 
       serviceData = await serviceRes.json();
     } catch (fetchErr) {
       if (fetchErr.code === 'ECONNREFUSED' || fetchErr.type === 'system') {
-        logger.error(`[Video] Cannot reach video-processing service at ${VIDEO_SERVICE_URL}`);
+        logger.error(`[Video] Cannot reach ML service at ${ML_SERVICE_URL}`);
         return res.status(503).json({
           success: false,
-          message: 'Video processing service is not running. Start it with: cd video-processing && python app.py',
+          message: 'ML service is not running. Start it with: cd ml-service && python -m uvicorn app:app --port 8000',
         });
       }
       throw fetchErr;
     }
 
-    logger.info(`[Video] Service result: ${serviceData.verdict?.label} (${serviceData.verdict?.confidence}%)`);
+    // Normalize ML labels to the frontend's expected REAL/FAKE/UNCERTAIN scheme.
+    const rawLabel = String(serviceData?.label || 'UNCERTAIN').toUpperCase();
+    const normalizedLabel =
+      rawLabel === 'AUTHENTIC' ? 'REAL' :
+      rawLabel === 'MANIPULATED' ? 'FAKE' :
+      rawLabel;
+    const normalizedConfidence = Number(serviceData?.confidence ?? 50);
+
+    logger.info(`[Video] Service result: ${normalizedLabel} (${normalizedConfidence}%)`);
 
     // ── Persist to Analysis model ─────────────────────────────────────────────
     const contentStr = userContext
@@ -86,19 +85,20 @@ exports.analyzeVideo = async (req, res, next) => {
       analysisType: 'video',
       mediaFilename: req.file.originalname,
       prediction: {
-        label: serviceData.verdict?.label || 'UNCERTAIN',
-        confidence: serviceData.verdict?.confidence ?? 50,
+        label: normalizedLabel,
+        confidence: normalizedConfidence,
         details: {
           analysisType: 'video',
-          videoSummary: serviceData.videoSummary || '',
-          transcript: serviceData.transcript || '',
-          language: serviceData.language || 'unknown',
-          duration: serviceData.duration || 0,
-          frameCount: serviceData.frameCount || 0,
+          videoSummary: '',
+          transcript: '',
+          language: 'unknown',
+          duration: 0,
+          frameCount: serviceData?.details?.frames_analyzed || 0,
           userContext,
-          reasoning: serviceData.verdict?.reasoning || '',
-          models: serviceData.verdict?.models || {},
-          serviceErrors: serviceData.errors || [],
+          reasoning: 'Generated from ML forensic video analysis.',
+          models: { videoAnalysis: serviceData?.analysis_type || 'video' },
+          serviceErrors: [],
+          mlDetails: serviceData?.details || {},
         },
       },
       status: 'completed',
@@ -117,18 +117,21 @@ exports.analyzeVideo = async (req, res, next) => {
         analysisType: 'video',
         filename: req.file.originalname,
         userContext,
-        transcript: serviceData.transcript || '',
-        language: serviceData.language || 'unknown',
-        duration: serviceData.duration || 0,
-        segments: serviceData.segments || [],
-        videoSummary: serviceData.videoSummary || '',
-        frameCount: serviceData.frameCount || 0,
+        transcript: '',
+        language: 'unknown',
+        duration: 0,
+        segments: [],
+        videoSummary: 'Forensic consistency analysis completed using ML video model.',
+        frameCount: serviceData?.details?.frames_analyzed || 0,
         verdict: {
-          label: serviceData.verdict?.label || 'UNCERTAIN',
-          confidence: serviceData.verdict?.confidence ?? 50,
-          reasoning: serviceData.verdict?.reasoning || '',
+          label: normalizedLabel,
+          confidence: normalizedConfidence,
+          reasoning: serviceData?.details?.manipulation_score != null
+            ? `Manipulation score: ${serviceData.details.manipulation_score}/100`
+            : 'Generated from ML forensic video analysis.',
         },
-        errors: serviceData.errors || [],
+        errors: [],
+        mlDetails: serviceData?.details || {},
         createdAt: analysis.createdAt,
       },
     });

@@ -43,6 +43,8 @@ model = None
 vectorizer = None
 struct_extractor = None
 yolo_model = None
+mobilenet_model = None
+mobilenet_transform = None
 
 
 def preprocess_text(text: str) -> str:
@@ -98,10 +100,43 @@ def load_yolo_model():
         logger.warning(f'Could not load YOLOv8n model ({e}). Object-detection layer will be skipped.')
 
 
+def load_mobilenet_model():
+    """Load MobileNetV2 pretrained on ImageNet for deep image feature analysis."""
+    global mobilenet_model, mobilenet_transform
+    try:
+        import torch
+        import torchvision.models as tv_models
+        import torchvision.transforms as transforms
+
+        local_path = os.path.join(MODELS_DIR, 'mobilenet_v2.pth')
+        mobilenet_model = tv_models.mobilenet_v2(weights=None)
+        if os.path.exists(local_path):
+            mobilenet_model.load_state_dict(torch.load(local_path, map_location='cpu'))
+            logger.info(f'MobileNetV2 weights loaded from {local_path}.')
+        else:
+            # Fallback: download from PyTorch Hub (requires internet)
+            logger.warning('mobilenet_v2.pth not found in models/. Downloading from PyTorch Hub...')
+            state_dict = tv_models.MobileNet_V2_Weights.IMAGENET1K_V1.get_state_dict(progress=True)
+            mobilenet_model.load_state_dict(state_dict)
+        mobilenet_model.eval()
+
+        mobilenet_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                 std=[0.229, 0.224, 0.225]),
+        ])
+        logger.info('MobileNetV2 model loaded successfully.')
+    except Exception as e:
+        logger.warning(f'Could not load MobileNetV2 ({e}). Deep-feature image analysis will be skipped.')
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_model()
     load_yolo_model()
+    load_mobilenet_model()
     yield
 
 
@@ -316,6 +351,7 @@ async def model_info():
         'vectorizer_loaded': vectorizer is not None,
         'structural_extractor_loaded': struct_extractor is not None,
         'yolo_loaded': yolo_model is not None,
+        'mobilenet_loaded': mobilenet_model is not None,
     }
 
 
@@ -431,11 +467,101 @@ def pixel_statistics(image: Image.Image) -> dict:
     }
 
 
+def mobilenet_image_analysis(image: Image.Image) -> dict:
+    """
+    Use pretrained MobileNetV2 (ImageNet weights) to extract deep-feature signals
+    for image authenticity assessment.
+
+    Signals produced
+    ─────────────────
+    • prediction_entropy   — softmax entropy over 1000 classes, normalised to [0,1].
+                             Authentic photos tend to produce moderate entropy; unusual
+                             or AI-generated images often yield higher entropy because
+                             the network is uncertain about their content.
+    • top_class_confidence — confidence of the single most likely ImageNet class.
+    • feature_std          — standard deviation of the penultimate-layer feature vector.
+                             Synthetically generated images sometimes show unusually low
+                             feature diversity.
+    • crop_entropy_variation — std of entropy values computed across four random 224×224
+                               crops. Composited/spliced images produce inconsistent
+                               regional predictions, raising this value.
+    """
+    if mobilenet_model is None:
+        return {'available': False}
+
+    import random
+    import torch
+    import torch.nn.functional as F
+
+    try:
+        img_rgb = image.convert('RGB')
+        w, h = img_rgb.size
+
+        # ── Full-image forward pass ──────────────────────────────
+        tensor = mobilenet_transform(img_rgb).unsqueeze(0)
+        with torch.no_grad():
+            logits = mobilenet_model(tensor)
+            probs = F.softmax(logits, dim=1)[0].numpy()
+
+        # Prediction entropy (nats), normalised by ln(1000)
+        _max_entropy = float(np.log(1000))
+        entropy = float(-np.sum(probs * np.log(probs + 1e-9)))
+        norm_entropy = entropy / _max_entropy
+
+        top_confidence = float(np.max(probs))
+        top5_confidence = float(np.sum(np.sort(probs)[-5:]))
+
+        # ── Feature vector (penultimate layer) ───────────────────
+        with torch.no_grad():
+            features = mobilenet_model.features(tensor)
+            feat_vec = F.adaptive_avg_pool2d(features, (1, 1)).squeeze().numpy()
+
+        feature_std = float(np.std(feat_vec))
+
+        # ── Multi-crop entropy consistency ───────────────────────
+        crop_size = 224
+        crop_entropies = []
+        for _ in range(4):
+            if w > crop_size and h > crop_size:
+                x = random.randint(0, w - crop_size)
+                y = random.randint(0, h - crop_size)
+                crop = img_rgb.crop((x, y, x + crop_size, y + crop_size))
+            else:
+                crop = img_rgb
+
+            crop_tensor = mobilenet_transform(crop).unsqueeze(0)
+            with torch.no_grad():
+                crop_logits = mobilenet_model(crop_tensor)
+                crop_probs = F.softmax(crop_logits, dim=1)[0].numpy()
+            crop_ent = float(-np.sum(crop_probs * np.log(crop_probs + 1e-9))) / _max_entropy
+            crop_entropies.append(crop_ent)
+
+        crop_entropy_variation = float(np.std(crop_entropies))
+
+        return {
+            'available': True,
+            'prediction_entropy': round(entropy, 4),
+            'normalized_entropy': round(norm_entropy, 4),
+            'top_class_confidence': round(top_confidence, 4),
+            'top5_confidence': round(top5_confidence, 4),
+            'feature_std': round(feature_std, 4),
+            'crop_entropy_variation': round(crop_entropy_variation, 4),
+            # Interpretation flags (used by scoring)
+            'high_entropy': norm_entropy > 0.75,
+            'low_feature_diversity': feature_std < 0.10,
+            'inconsistent_crops': crop_entropy_variation > 0.05,
+        }
+    except Exception as e:
+        logger.error(f'MobileNetV2 analysis failed: {e}')
+        return {'available': False, 'error': str(e)}
+
+
 def analyze_image(image: Image.Image) -> dict:
     """Run full image forensic analysis and produce a verdict."""
     ela = error_level_analysis(image)
     metadata = analyze_metadata(image)
     stats = pixel_statistics(image)
+    mobilenet = mobilenet_image_analysis(image)
 
     # Scoring (0 = definitely real, 100 = definitely fake)
     score = 0
@@ -462,6 +588,15 @@ def analyze_image(image: Image.Image) -> dict:
     if stats['low_noise_flag']:
         score += 10
 
+    # MobileNetV2 deep-feature signals
+    if mobilenet.get('available'):
+        if mobilenet['inconsistent_crops']:
+            score += 15  # different regions yield inconsistent predictions → compositing
+        if mobilenet['low_feature_diversity']:
+            score += 10  # unusually homogeneous features → potentially synthetic
+        if mobilenet['high_entropy']:
+            score += 10  # image content is unusual/ambiguous for a real photo
+
     score = min(100, max(0, score))
 
     if score >= 55:
@@ -484,6 +619,7 @@ def analyze_image(image: Image.Image) -> dict:
             'error_level_analysis': ela,
             'metadata': metadata,
             'pixel_statistics': stats,
+            'mobilenet_analysis': mobilenet,
             'manipulation_score': score,
         },
     }
