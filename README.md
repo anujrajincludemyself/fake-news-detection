@@ -1,6 +1,6 @@
 # TASDEEQ - AI Fake News Detection Platform
 
-A full-stack web application that detects fake news using machine learning and natural language processing. Supports **text, image, and video** analysis. Built with React, Node.js, MongoDB, and a Python ML microservice.
+A full-stack web application that detects fake news using machine learning and natural language processing. Supports **text and video** analysis. Built with React, Node.js, MongoDB, and a Python ML microservice.
 
 
 
@@ -14,7 +14,7 @@ client/ (React + Redux)   -->   server/ (Node.js/Express)   -->   MongoDB
 
 - **Frontend** -- React SPA with Redux Toolkit, React Router, Framer Motion
 - **Backend** -- Express REST API with JWT auth, rate limiting, NLP analysis, media upload
-- **ML Service** -- FastAPI microservice with scikit-learn ensemble model + image/video forensics
+- **ML Service** -- FastAPI microservice with scikit-learn ensemble model + video forensics
 - **Database** -- MongoDB for users, analyses, and feedback
 
 ### Detection Capabilities
@@ -22,7 +22,6 @@ client/ (React + Redux)   -->   server/ (Node.js/Express)   -->   MongoDB
 | Type | Techniques |
 |------|------------|
 | **Text** | ML ensemble (Logistic Regression, Random Forest, Gradient Boosting), NLP heuristics, sentiment & clickbait detection |
-| **Image** | Error Level Analysis (ELA), EXIF metadata inspection, pixel statistics, noise profiling |
 | **Video** | Frame extraction, temporal consistency analysis, per-frame ELA, noise profile analysis |
 
 ### ML Models Used
@@ -34,14 +33,6 @@ client/ (React + Redux)   -->   server/ (Node.js/Express)   -->   MongoDB
 | **Random Forest** (200 trees) | Captures non-linear patterns in TF-IDF features |
 | **Gradient Boosting** (150 estimators) | Boosts accuracy through iterative correction |
 | **Soft Voting Ensemble** | Combines all three for best overall performance |
-
-#### Image Forensics
-| Technique | What It Detects |
-|-----------|----------------|
-| **Error Level Analysis (ELA)** | Regions resaved at different compression — indicates splicing/editing |
-| **EXIF Metadata Inspection** | Editing software fingerprints (Photoshop, FaceApp, etc.) |
-| **Pixel Statistics** | Abnormal channel distributions, overly uniform textures |
-| **Noise Profiling** | Laplacian variance — AI-generated images have unusually low noise |
 
 #### Video Forensics
 | Technique | What It Detects |
@@ -182,11 +173,10 @@ The training script auto-detects common column names (text/content/article, labe
 | GET | `/api/analysis/:id` | Get single analysis |
 | PUT | `/api/analysis/:id/feedback` | Submit feedback |
 
-### Media Analysis
+### Video Analysis
 | Method | Route | Description |
 |--------|-------|-------------|
-| POST | `/api/media/image` | Analyze image for manipulation (multipart upload) |
-| POST | `/api/media/video` | Analyze video for manipulation (multipart upload) |
+| POST | `/api/video/analyze` | Analyze video for manipulation (multipart upload) |
 
 ---
 
@@ -197,20 +187,20 @@ fake-news/
   client/                  # React frontend
     src/
       components/layout/   # Navbar, Footer
-      pages/               # Home, Analyze, MediaAnalyze, About, Login, Register, Dashboard, History
+      pages/               # Home, Analyze, MediaAnalyze (video), About, Login, Register, Dashboard, History
       store/               # Redux store + slices (auth, analysis, ui)
       services/            # Axios API service
   server/                  # Node.js backend
     src/
       config/              # Database config
-      controllers/         # Auth, Analysis, Media controllers
+      controllers/         # Auth, Analysis controllers
       middleware/          # JWT auth, error handler, file upload (multer)
       models/              # User, Analysis Mongoose models
-      routes/              # Auth, Analysis, Media routes
+      routes/              # Auth, Analysis routes
       services/            # NLP analyzer, prediction service
       utils/               # Logger
   ml-service/              # Python ML microservice
-    app.py                 # FastAPI prediction API (text + image + video)
+    app.py                 # FastAPI prediction API (text + video)
     train_model.py         # Model training script
     models/                # Saved model files (.pkl)
     data/                  # Dataset CSVs (gitignored)
