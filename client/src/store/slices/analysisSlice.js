@@ -15,27 +15,6 @@ export const analyzeNews = createAsyncThunk(
   }
 );
 
-export const analyzeImage = createAsyncThunk(
-  'analysis/analyzeImage',
-  async ({ file, title, claim }, { rejectWithValue }) => {
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      if (title) formData.append('title', title);
-      if (claim) formData.append('claim', claim);
-      const { data } = await api.post('/media/image', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 60000,
-      });
-      return data.data;
-    } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || 'Image analysis failed'
-      );
-    }
-  }
-);
-
 export const analyzeVideo = createAsyncThunk(
   'analysis/analyzeVideo',
   async ({ file, title, context }, { rejectWithValue }) => {
@@ -152,21 +131,6 @@ const analysisSlice = createSlice({
         state.statsLastFetched = null; // invalidate so dashboard re-fetches on next visit
       })
       .addCase(analyzeNews.rejected, (state, action) => {
-        state.analyzing = false;
-        state.error = action.payload;
-      })
-      // Analyze Image
-      .addCase(analyzeImage.pending, (state) => {
-        state.analyzing = true;
-        state.error = null;
-        state.currentAnalysis = null;
-      })
-      .addCase(analyzeImage.fulfilled, (state, action) => {
-        state.analyzing = false;
-        state.currentAnalysis = action.payload;
-        state.statsLastFetched = null;
-      })
-      .addCase(analyzeImage.rejected, (state, action) => {
         state.analyzing = false;
         state.error = action.payload;
       })
