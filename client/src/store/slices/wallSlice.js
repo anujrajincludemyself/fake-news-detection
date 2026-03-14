@@ -57,7 +57,6 @@ const wallSlice = createSlice({
       .addMatcher(
         (action) => [
           'analysis/analyze/fulfilled',
-          'analysis/analyzeImage/fulfilled',
           'analysis/analyzeVideo/fulfilled',
         ].includes(action.type),
         (state) => {
