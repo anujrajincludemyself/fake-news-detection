@@ -7,7 +7,6 @@ import {
   HiLightningBolt,
   HiChartBar,
   HiDatabase,
-  HiPhotograph,
   HiFilm,
 } from 'react-icons/hi';
 import { FiArrowRight, FiSearch, FiCpu, FiCheckCircle, FiBarChart2, FiX, FiAlertCircle } from 'react-icons/fi';
@@ -29,7 +28,6 @@ const heroFade = {
 const features = [
   { icon: <HiLightningBolt />, color: 'blue',   title: 'Real-Time Analysis',   desc: 'Instant credibility scores on any article using our advanced AI pipeline.' },
   { icon: <HiShieldCheck />,   color: 'purple', title: 'ML-Powered Detection', desc: 'Ensemble of Logistic Regression, Random Forest, and Gradient Boosting models.' },
-  { icon: <HiPhotograph />,    color: 'pink',   title: 'Image Forensics',      desc: 'Detect manipulated images via ELA, metadata analysis, and pixel-level statistics.' },
   { icon: <HiFilm />,          color: 'teal',   title: 'Video Analysis',       desc: 'Analyze videos for frame consistency, noise anomalies, and temporal manipulation.' },
   { icon: <HiChartBar />,      color: 'amber',  title: 'Detailed Breakdown',   desc: 'Sentiment, subjectivity, clickbait detection, and credibility indicators.' },
   { icon: <HiDatabase />,      color: 'green',  title: 'History Tracking',     desc: 'Save and review all previous analyses with your personal dashboard.' },
@@ -289,7 +287,7 @@ const HomePage = () => {
             </motion.h1>
 
             <motion.p className="hero-subtitle" custom={2} variants={heroFade}>
-              Paste any news article, upload images, or submit videos — our machine
+              Paste any news article or submit videos — our machine
               learning models analyze them for authenticity in seconds.
             </motion.p>
 
@@ -304,7 +302,7 @@ const HomePage = () => {
                 className="btn btn-secondary btn-lg"
                 onClick={() => handleProtectedNav('/media-analyze')}
               >
-                Analyze Media <FiArrowRight />
+                Analyze Video <FiArrowRight />
               </button>
             </motion.div>
 
@@ -367,7 +365,7 @@ const HomePage = () => {
               <>
                 <h2 className="cta-title">Start Fighting Misinformation</h2>
                 <p className="cta-desc">
-                  You're all set. Analyze articles, images, and videos, or review your personal
+                  You're all set. Analyze articles and videos, or review your personal
                   analysis history from your dashboard.
                 </p>
                 <div className="hero-actions">
