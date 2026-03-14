@@ -3,7 +3,6 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-toastify';
 import {
-  FiImage,
   FiVideo,
   FiUploadCloud,
   FiTrash2,
@@ -12,7 +11,7 @@ import {
   FiAlertTriangle,
   FiInfo,
 } from 'react-icons/fi';
-import { analyzeImage, analyzeVideo, clearCurrentAnalysis } from '../store/slices/analysisSlice';
+import { analyzeVideo, clearCurrentAnalysis } from '../store/slices/analysisSlice';
 import './MediaAnalyzePage.css';
 
 const MediaAnalyzePage = () => {
@@ -21,48 +20,27 @@ const MediaAnalyzePage = () => {
   const analyzing = useSelector((state) => state.analysis.analyzing);
   const error = useSelector((state) => state.analysis.error);
 
-  const [mode, setMode] = useState('image'); // 'image' or 'video'
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [title, setTitle] = useState('');
-  const [claim, setClaim] = useState('');
+  const [context, setContext] = useState('');
   const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
     const selected = e.target.files[0];
     if (!selected) return;
 
-    // Validate type
-    if (mode === 'image') {
-      if (!selected.type.startsWith('image/')) {
-        toast.error('Please select a valid image file.');
-        return;
-      }
-      if (selected.size > 2.5 * 1024 * 1024) {
-        toast.error('Image must be under 2.5 MB.');
-        return;
-      }
-    } else {
-      if (!selected.type.startsWith('video/')) {
-        toast.error('Please select a valid video file.');
-        return;
-      }
-      if (selected.size > 100 * 1024 * 1024) {
-        toast.error('Video must be under 100 MB.');
-        return;
-      }
+    if (!selected.type.startsWith('video/')) {
+      toast.error('Please select a valid video file.');
+      return;
+    }
+    if (selected.size > 100 * 1024 * 1024) {
+      toast.error('Video must be under 100 MB.');
+      return;
     }
 
     setFile(selected);
-
-    // Create preview
-    if (mode === 'image') {
-      const reader = new FileReader();
-      reader.onload = (ev) => setPreview(ev.target.result);
-      reader.readAsDataURL(selected);
-    } else {
-      setPreview(URL.createObjectURL(selected));
-    }
+    setPreview(URL.createObjectURL(selected));
   };
 
   const handleDrop = (e) => {
@@ -87,15 +65,13 @@ const MediaAnalyzePage = () => {
       return;
     }
 
-    const action = mode === 'image'
-      ? analyzeImage({ file, title, claim })
-      : analyzeVideo({ file, title, context: claim });
+    const action = analyzeVideo({ file, title, context });
 
     const result = await dispatch(action);
     if (result.meta.requestStatus === 'fulfilled') {
-      toast.success(`${mode === 'image' ? 'Image' : 'Video'} analysis completed!`);
+      toast.success('Video analysis completed!');
     } else {
-      toast.error(error || `Failed to analyze ${mode}. Please try again.`);
+      toast.error(error || 'Failed to analyze video. Please try again.');
     }
   };
 
@@ -103,16 +79,9 @@ const MediaAnalyzePage = () => {
     setFile(null);
     setPreview(null);
     setTitle('');
-    setClaim('');
+    setContext('');
     if (fileInputRef.current) fileInputRef.current.value = '';
     dispatch(clearCurrentAnalysis());
-  };
-
-  const switchMode = (newMode) => {
-    if (newMode !== mode) {
-      handleClear();
-      setMode(newMode);
-    }
   };
 
   const getVerdictIcon = (label) => {
@@ -163,30 +132,12 @@ const MediaAnalyzePage = () => {
   };
 
   const pred = currentAnalysis?.prediction;
-  const mediaDetails = pred?.details?.mediaDetails;
-
   return (
     <div className="media-analyze-page">
       <div className="container">
         <div className="analyze-header">
-          <h1>Media Forensic Analysis</h1>
-          <p>Upload an image or video to detect manipulation and deepfakes</p>
-        </div>
-
-        {/* Mode Switcher */}
-        <div className="mode-switcher">
-          <button
-            className={`mode-btn ${mode === 'image' ? 'active' : ''}`}
-            onClick={() => switchMode('image')}
-          >
-            <FiImage /> Image Analysis
-          </button>
-          <button
-            className={`mode-btn ${mode === 'video' ? 'active' : ''}`}
-            onClick={() => switchMode('video')}
-          >
-            <FiVideo /> Video Analysis
-          </button>
+          <h1>Video Forensic Analysis</h1>
+          <p>Upload a video to detect manipulation and deepfakes</p>
         </div>
 
         <div className="analyze-layout">
@@ -198,37 +149,22 @@ const MediaAnalyzePage = () => {
                 <input
                   type="text"
                   className="form-input"
-                  placeholder={`Name this ${mode} analysis...`}
+                  placeholder="Name this video analysis..."
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
               </div>
 
-              {mode === 'image' && (
-                <div className="form-group">
-                  <label className="form-label">What is this image claiming? (optional but improves accuracy)</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="e.g. This photo shows the 2024 flood in Valencia..."
-                    value={claim}
-                    onChange={(e) => setClaim(e.target.value)}
-                  />
-                </div>
-              )}
-
-              {mode === 'video' && (
-                <div className="form-group">
-                  <label className="form-label">What is this video claimed to show? (improves accuracy)</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="e.g. This video shows the 2024 earthquake aftermath in Turkey..."
-                    value={claim}
-                    onChange={(e) => setClaim(e.target.value)}
-                  />
-                </div>
-              )}
+              <div className="form-group">
+                <label className="form-label">What is this video claimed to show? (improves accuracy)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. This video shows the 2024 earthquake aftermath in Turkey..."
+                  value={context}
+                  onChange={(e) => setContext(e.target.value)}
+                />
+              </div>
 
               <div
                 className={`upload-zone ${file ? 'has-file' : ''}`}
@@ -240,21 +176,15 @@ const MediaAnalyzePage = () => {
                   <div className="upload-placeholder">
                     <FiUploadCloud className="upload-icon" />
                     <p className="upload-text">
-                      {mode === 'image'
-                        ? 'Drop an image here or click to browse'
-                        : 'Drop a video here or click to browse'}
+                      Drop a video here or click to browse
                     </p>
                     <p className="upload-hint">
-                      {mode === 'image'
-                        ? 'JPEG, PNG, WebP, BMP — max 2.5 MB'
-                        : 'MP4, AVI, WebM, MOV, MKV — max 100 MB'}
+                      MP4, AVI, WebM, MOV, MKV — max 100 MB
                     </p>
                   </div>
                 ) : (
                   <div className="file-preview">
-                    {mode === 'image' && preview ? (
-                      <img src={preview} alt="Preview" className="preview-img" />
-                    ) : mode === 'video' && preview ? (
+                    {preview ? (
                       <video src={preview} className="preview-video" controls muted />
                     ) : null}
                     <div className="file-info">
@@ -266,7 +196,7 @@ const MediaAnalyzePage = () => {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept={mode === 'image' ? 'image/*' : 'video/*'}
+                  accept="video/*"
                   onChange={handleFileChange}
                   hidden
                 />
@@ -284,7 +214,7 @@ const MediaAnalyzePage = () => {
                     </>
                   ) : (
                     <>
-                      {mode === 'image' ? <FiImage /> : <FiVideo />} Analyze {mode === 'image' ? 'Image' : 'Video'}
+                      <FiVideo /> Analyze Video
                     </>
                   )}
                 </button>
@@ -312,12 +242,10 @@ const MediaAnalyzePage = () => {
                 >
                   <div className="analyzing-spinner" />
                   <div className="analyzing-text">
-                    Analyzing your {mode}...
+                    Analyzing your video...
                   </div>
                   <div className="analyzing-sub">
-                    {mode === 'image'
-                      ? 'Running ELA, metadata, and pixel analysis'
-                      : 'Transcribing audio locally, then running Groq fact-check…'}
+                    Transcribing audio locally, then running Groq fact-check…
                   </div>
                 </motion.div>
               ) : pred ? (
@@ -349,112 +277,6 @@ const MediaAnalyzePage = () => {
 
                   {/* Media-specific details */}
                   <div className="result-details">
-                    {/* IMAGE RESULTS */}
-                    {currentAnalysis?.analysisType === 'image' && mediaDetails && (
-                      <>
-                        {/* ELA Section */}
-                        <div className="detail-section">
-                          <div className="detail-section-title">
-                            Error Level Analysis (ELA)
-                          </div>
-                          <div className="detail-grid">
-                            <div className="detail-item">
-                              <span className="detail-item-label">Mean Error</span>
-                              <span className="detail-item-value neutral">
-                                {mediaDetails.error_level_analysis?.mean_error}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Max Error</span>
-                              <span className={`detail-item-value ${mediaDetails.error_level_analysis?.max_error > 30 ? 'negative' : 'neutral'}`}>
-                                {mediaDetails.error_level_analysis?.max_error}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Suspicious Pixels</span>
-                              <span className={`detail-item-value ${mediaDetails.error_level_analysis?.suspicious_pixel_ratio > 0.02 ? 'negative' : 'positive'}`}>
-                                {((mediaDetails.error_level_analysis?.suspicious_pixel_ratio || 0) * 100).toFixed(2)}%
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Max Channel Diff</span>
-                              <span className="detail-item-value neutral">
-                                {mediaDetails.error_level_analysis?.max_channel_diff}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Metadata Section */}
-                        <div className="detail-section">
-                          <div className="detail-section-title">
-                            Metadata Analysis
-                          </div>
-                          <div className="detail-grid">
-                            <div className="detail-item">
-                              <span className="detail-item-label">EXIF Data</span>
-                              <span className={`indicator-tag ${mediaDetails.metadata?.has_exif ? 'clear' : 'detected'}`}>
-                                {mediaDetails.metadata?.has_exif ? 'Present' : 'Missing'}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Edit Software</span>
-                              <span className={`indicator-tag ${mediaDetails.metadata?.has_edit_software ? 'detected' : 'clear'}`}>
-                                {mediaDetails.metadata?.has_edit_software
-                                  ? mediaDetails.metadata?.editing_software || 'Detected'
-                                  : 'None'}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Format</span>
-                              <span className="detail-item-value neutral">
-                                {mediaDetails.metadata?.format}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Dimensions</span>
-                              <span className="detail-item-value neutral">
-                                {mediaDetails.metadata?.size?.width}×{mediaDetails.metadata?.size?.height}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Pixel Stats */}
-                        <div className="detail-section">
-                          <div className="detail-section-title">
-                            Pixel Statistics
-                          </div>
-                          <div className="detail-grid">
-                            <div className="detail-item">
-                              <span className="detail-item-label">Uniformity</span>
-                              <span className={`indicator-tag ${mediaDetails.pixel_statistics?.is_overly_uniform ? 'detected' : 'clear'}`}>
-                                {mediaDetails.pixel_statistics?.is_overly_uniform ? 'Suspicious' : 'Normal'}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Noise Level</span>
-                              <span className={`indicator-tag ${mediaDetails.pixel_statistics?.low_noise_flag ? 'detected' : 'clear'}`}>
-                                {mediaDetails.pixel_statistics?.low_noise_flag ? 'AI-like' : 'Natural'}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Noise Variance</span>
-                              <span className="detail-item-value neutral">
-                                {mediaDetails.pixel_statistics?.noise_variance}
-                              </span>
-                            </div>
-                            <div className="detail-item">
-                              <span className="detail-item-label">Overall Std</span>
-                              <span className="detail-item-value neutral">
-                                {mediaDetails.pixel_statistics?.overall_std}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </>
-                    )}
-
                     {/* VIDEO RESULTS */}
                     {currentAnalysis?.analysisType === 'video' && (
                       <>
@@ -514,62 +336,11 @@ const MediaAnalyzePage = () => {
                       </>
                     )}
 
-                    {/* AI Analysis Summary (Groq Vision — image only) */}
-                    {currentAnalysis?.analysisType !== 'video' && (pred?.details?.reasoning || pred?.details?.imageDescription) && (
-                      <div className="detail-section">
-                        <div className="detail-section-title">AI Analysis Summary</div>
-                        {pred.details.imageDescription && (
-                          <div className="ai-summary-item">
-                            <span className="ai-summary-label">What the image shows:</span>
-                            <span className="ai-summary-text">{pred.details.imageDescription}</span>
-                          </div>
-                        )}
-                        {pred.details.imageMatchLabel && (
-                          <div className="ai-summary-item">
-                            <span className="ai-summary-label">Image vs Claim:</span>
-                            <span className={`ai-summary-text ai-summary-verdict ${pred.details.imageMatchLabel.toLowerCase()}`}>
-                              {pred.details.imageMatchLabel}
-                              {pred.details.imageMatchReasoning ? ` — ${pred.details.imageMatchReasoning}` : ''}
-                            </span>
-                          </div>
-                        )}
-                        {pred.details.claimFactLabel && (
-                          <div className="ai-summary-item">
-                            <span className="ai-summary-label">Claim Fact-Check:</span>
-                            <span className={`ai-summary-text ai-summary-verdict ${pred.details.claimFactLabel.toLowerCase()}`}>
-                              {pred.details.claimFactLabel}
-                              {pred.details.claimFactReasoning ? ` — ${pred.details.claimFactReasoning}` : ''}
-                            </span>
-                          </div>
-                        )}
-                        {pred.details.reasoning && !pred.details.imageMatchLabel && (
-                          <div className="ai-summary-item">
-                            <span className="ai-summary-label">Reasoning:</span>
-                            <span className="ai-summary-text">{pred.details.reasoning}</span>
-                          </div>
-                        )}
-                        {pred.details.reasoning && pred.details.imageMatchLabel && (
-                          <div className="ai-summary-item">
-                            <span className="ai-summary-label">Final Verdict Reasoning:</span>
-                            <span className="ai-summary-text">{pred.details.reasoning}</span>
-                          </div>
-                        )}
-                        {pred.details.source && (
-                          <div className="ai-summary-item">
-                            <span className="ai-summary-label">Powered by:</span>
-                            <span className="ai-summary-text ai-summary-source">{pred.details.model || pred.details.source}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
                     {/* Info note */}
                     <div className="media-info-note">
                       <FiInfo />
                       <span>
-                        {currentAnalysis?.analysisType === 'image'
-                          ? 'Analysis uses AI vision (Llama 4 Scout) to assess image authenticity and match it against the provided claim.'
-                          : 'Audio transcribed locally with Whisper, then fact-checked with Groq (2 API calls total).'}
+                        Audio transcribed locally with Whisper, then fact-checked with Groq (2 API calls total).
                       </span>
                     </div>
                   </div>
@@ -582,11 +353,11 @@ const MediaAnalyzePage = () => {
                   animate={{ opacity: 1 }}
                 >
                   <div className="result-placeholder-icon">
-                    {mode === 'image' ? <FiImage /> : <FiVideo />}
+                    <FiVideo />
                   </div>
                   <h3>No Analysis Yet</h3>
                   <p>
-                    Upload {mode === 'image' ? 'an image' : 'a video'} and click Analyze to check for manipulation.
+                    Upload a video and click Analyze to check for manipulation.
                   </p>
                 </motion.div>
               )}
