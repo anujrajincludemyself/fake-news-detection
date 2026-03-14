@@ -701,26 +701,6 @@ def analyze_image(image: Image.Image) -> dict:
         },
     }
 
-
-@app.post('/predict/image')
-async def predict_image(file: UploadFile = File(...)):
-    """Analyze an uploaded image for signs of manipulation."""
-    if file.content_type not in ALLOWED_IMAGE_TYPES:
-        raise HTTPException(400, f'Unsupported image type: {file.content_type}. Accepted: JPEG, PNG, WebP, BMP')
-
-    contents = await file.read()
-    if len(contents) > MAX_IMAGE_SIZE:
-        raise HTTPException(400, 'Image too large. Maximum size is 20 MB.')
-
-    try:
-        image = Image.open(io.BytesIO(contents))
-        result = analyze_image(image)
-        return result
-    except Exception as e:
-        logger.error(f'Image analysis failed: {e}')
-        raise HTTPException(500, 'Image analysis failed. Please try a different image.')
-
-
 # ──────────────────────────────────────────
 # VIDEO FAKE DETECTION
 # ──────────────────────────────────────────
