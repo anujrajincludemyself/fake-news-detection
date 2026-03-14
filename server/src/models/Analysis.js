@@ -24,7 +24,7 @@ const analysisSchema = new mongoose.Schema(
     },
     analysisType: {
       type: String,
-      enum: ['text', 'image', 'video'],
+      enum: ['text', 'video'],
       default: 'text',
     },
     mediaFilename: {

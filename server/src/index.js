@@ -12,7 +12,6 @@ const logger = require('./utils/logger');
 // Route files
 const authRoutes = require('./routes/auth');
 const analysisRoutes = require('./routes/analysis');
-const mediaRoutes = require('./routes/media');
 const extensionRoutes = require('./routes/extension');
 const wallRoutes = require('./routes/wall');
 const notificationRoutes = require('./routes/notifications');
@@ -102,7 +101,6 @@ app.get('/api/health', (req, res) => {
 // Mount routes
 app.use('/api/auth', authRoutes);
 app.use('/api/analysis', analysisRoutes);
-app.use('/api/media', mediaRoutes);
 app.use('/api/extension', extensionRoutes);
 app.use('/api/wall', wallRoutes);
 app.use('/api/video', videoRoutes);
