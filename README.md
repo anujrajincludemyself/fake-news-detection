@@ -1,6 +1,4 @@
 # TASDEEQ - AI Fake News Detection Platform
-
-
 The app is open source and anyone can contribute to it
 
 A full-stack web application that detects fake news using machine learning and natural language processing. Supports **text and video** analysis. Built with React, Node.js, MongoDB, and a Python ML microservice.
@@ -10,7 +8,6 @@ client/ (React + Redux)   -->   server/ (Node.js/Express)   -->   MongoDB
                                        |
                                 ml-service/ (Python FastAPI)
 ```
-
 - **Frontend** -- React SPA with Redux Toolkit, React Router, Framer Motion
 - **Backend** -- Express REST API with JWT auth, rate limiting, NLP analysis, media upload
 - **ML Service** -- FastAPI microservice with scikit-learn ensemble model + video forensics
