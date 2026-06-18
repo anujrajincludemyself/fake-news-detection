@@ -8,7 +8,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-  apiKey: 'AIzaSyBv7hzSFaS6XmiqOC-Z--ky8TIfUDJvDRA',
+  apiKey: 'example',
   authDomain: 'tasdeeq-notifications.firebaseapp.com',
   projectId: 'tasdeeq-notifications',
   storageBucket: 'tasdeeq-notifications.firebasestorage.app',
